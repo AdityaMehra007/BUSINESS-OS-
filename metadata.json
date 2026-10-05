@@ -1,0 +1,6 @@
+{
+  "name": "World Business OS",
+  "description": "Global enterprise operating system for multinational corporate structuring, multi-currency treasury, cross-border invoicing, global payroll, and supply chain logistics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
