@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-android-worldbus-b89fa850-f80a-4b2e-9598-338661fcdfca",
+      "rules": "firestore.rules"
+    }
+  ]
+}

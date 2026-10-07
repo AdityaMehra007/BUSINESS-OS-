@@ -80,6 +80,7 @@ import com.example.worldbusiness.data.model.EntityRecord
 import com.example.worldbusiness.data.model.InvoiceRecord
 import com.example.worldbusiness.data.repository.CrossBorderTaxCalculator
 import com.example.worldbusiness.data.repository.FormattedInvoiceEngine
+import com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper
 import java.util.Locale
 
 /**
@@ -538,6 +539,109 @@ fun CrossBorderInvoiceGeneratorModal(
 
                         Text(
                             text = taxCalc.complianceNote,
+                            fontSize = 8.sp,
+                            color = TextMuted,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                // Section 5: Real-Time Multi-Currency Conversion & Volatility Hedging Buffer
+                val dualPricingQuote = remember(subtotal, currency, taxCalc.vatRatePercent) {
+                    val targetSettlement = if (currency == "USD") "EUR" else "USD"
+                    MultiCurrencyConversionHelper.calculateInvoiceMultiCurrencyPricing(
+                        invoiceNumber = "PRO-FORMA",
+                        subtotal = subtotal,
+                        originalCurrency = currency,
+                        settlementCurrency = targetSettlement,
+                        vatRatePercent = taxCalc.vatRatePercent,
+                        paymentTermsDays = 30
+                    )
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("multi_currency_conversion_quote_card"),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                    border = CardDefaults.outlinedCardBorder().copy(brush = Brush.verticalGradient(listOf(CyanAccent.copy(alpha = 0.5f), BorderSubtle)))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "REAL-TIME MULTI-CURRENCY CONVERSION",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CyanAccent,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "Net 30 Hedging Buffer",
+                                fontSize = 8.sp,
+                                color = TextMuted,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                text = "Cross-Rate (1 $currency):",
+                                fontSize = 9.sp,
+                                color = TextSecondary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "${Formatters.formatRate(dualPricingQuote.effectiveFxRate)} ${dualPricingQuote.settlementCurrency}",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                text = "Settlement (${dualPricingQuote.settlementCurrency}):",
+                                fontSize = 9.sp,
+                                color = TextSecondary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "${Formatters.formatCurrency(dualPricingQuote.settlementGrossTotal)} ${dualPricingQuote.settlementCurrency}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldPositive,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                text = "Volatility Buffer (+1.5%):",
+                                fontSize = 9.sp,
+                                color = TextSecondary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "+${Formatters.formatCurrency(dualPricingQuote.hedgingBufferAmount)} ${dualPricingQuote.settlementCurrency}",
+                                fontSize = 9.sp,
+                                color = GoldAccent,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Text(
+                            text = "Clearing Rail: ${dualPricingQuote.clearingRail}",
                             fontSize = 8.sp,
                             color = TextMuted,
                             fontFamily = FontFamily.Monospace

@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Enterprise user and executive profile",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Unique Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Executive display name" },
+        "email": { "type": "string", "description": "Corporate email address" },
+        "organizationName": { "type": "string", "description": "Parent multinational holding company" },
+        "baseCurrency": { "type": "string", "description": "Global reporting currency (e.g., USD, EUR, GBP, CHF)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account registration timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last profile update timestamp" }
+      },
+      "required": ["userId", "displayName", "baseCurrency", "createdAt", "updatedAt"]
+    },
+    "EntityRecord": {
+      "title": "EntityRecord",
+      "description": "Multinational subsidiary and corporate entity record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique corporate entity document ID" },
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "name": { "type": "string", "description": "Legal entity name" },
+        "jurisdiction": { "type": "string", "description": "Registration jurisdiction" },
+        "countryCode": { "type": "string", "description": "ISO 2-letter country code" },
+        "entityType": { "type": "string", "description": "Corporate legal structure" },
+        "taxId": { "type": "string", "description": "Statutory tax identification number" },
+        "status": { "type": "string", "description": "Compliance standing (e.g. GOOD_STANDING)" },
+        "baseCurrency": { "type": "string", "description": "Operating currency" },
+        "operatingCapital": { "type": "number", "description": "Capital allocation in base currency" },
+        "annualFilingDeadline": { "type": "string", "description": "Statutory annual report deadline" },
+        "localDirector": { "type": "string", "description": "Resident statutory director" },
+        "complianceScore": { "type": "number", "description": "Regulatory health score (0-100)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["id", "userId", "name", "jurisdiction", "countryCode", "status", "baseCurrency", "createdAt", "updatedAt"]
+    },
+    "InvoiceRecord": {
+      "title": "InvoiceRecord",
+      "description": "Cross-border commercial invoice record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique invoice document ID" },
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "invoiceNumber": { "type": "string", "description": "Statutory invoice identifier (e.g. INV-2026-XXXX)" },
+        "issuingEntityName": { "type": "string", "description": "Legal entity issuing the invoice" },
+        "clientName": { "type": "string", "description": "International client legal name" },
+        "clientCountry": { "type": "string", "description": "Destination country" },
+        "issueDate": { "type": "string", "description": "Commercial issue date" },
+        "dueDate": { "type": "string", "description": "Maturity / remittance due date" },
+        "amount": { "type": "number", "description": "Subtotal amount in billing currency" },
+        "currency": { "type": "string", "description": "Billing currency code" },
+        "taxRatePercent": { "type": "number", "description": "Regional VAT/GST/MWST rate percent" },
+        "status": { "type": "string", "description": "Lifecycle stage: DRAFT, PENDING, IN_CLEARING, PAID, OVERDUE" },
+        "serviceDescription": { "type": "string", "description": "HSN/SAC line item service description" },
+        "isSynced": { "type": "boolean", "description": "Cloud synchronization flag" },
+        "syncStatus": { "type": "string", "description": "Cloud sync status indicator" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["id", "userId", "invoiceNumber", "issuingEntityName", "clientName", "amount", "currency", "status", "createdAt", "updatedAt"]
+    },
+    "FxBalanceRecord": {
+      "title": "FxBalanceRecord",
+      "description": "Multi-currency sovereign treasury vault balance",
+      "type": "object",
+      "properties": {
+        "currencyCode": { "type": "string", "description": "ISO currency code (e.g. USD, EUR, GBP, CHF)" },
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "currencyName": { "type": "string", "description": "Currency descriptive name" },
+        "symbol": { "type": "string", "description": "Currency symbol" },
+        "balance": { "type": "number", "description": "Current vault balance" },
+        "rateToUsd": { "type": "number", "description": "Current rate against USD" },
+        "dailyChangePercent": { "type": "number", "description": "24h volatility percent" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last updated timestamp" }
+      },
+      "required": ["currencyCode", "userId", "currencyName", "balance", "rateToUsd", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profiles with self-only read/write access"
+    },
+    "/users/{userId}/entities/{entityId}": {
+      "schema": { "$ref": "#/entities/EntityRecord" },
+      "description": "Corporate entities owned and managed by the authenticated user"
+    },
+    "/users/{userId}/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/InvoiceRecord" },
+      "description": "Commercial cross-border invoices issued by the user's corporate subsidiaries"
+    },
+    "/users/{userId}/fx_balances/{currencyCode}": {
+      "schema": { "$ref": "#/entities/FxBalanceRecord" },
+      "description": "Multi-currency treasury vault balances owned by the authenticated user"
+    }
+  }
+}

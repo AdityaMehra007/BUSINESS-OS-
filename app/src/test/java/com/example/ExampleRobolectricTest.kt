@@ -1903,4 +1903,170 @@ class ExampleRobolectricTest {
     assertEquals(2, customDoc.lineItems.size)
     assertEquals(100000.0, customDoc.subtotal, 0.001)
   }
+
+  @Test
+  fun `test multi-currency conversion helper for treasury valuation, swaps, and cross-border invoicing`() = runBlocking {
+    repository.seedInitialDataIfNeeded()
+
+    val fxDao = database.fxBalanceDao()
+    val balances = fxDao.getAllBalances().first()
+    assertTrue("Room database must provide fx balances for multi-currency calculations", balances.isNotEmpty())
+
+    val liveRates = mapOf(
+      "USD" to 1.0,
+      "EUR" to 1.10,
+      "GBP" to 1.30,
+      "CHF" to 1.15,
+      "SGD" to 0.75,
+      "JPY" to 0.0067
+    )
+
+    // 1. Core Real-Time Multi-Currency Conversion
+    val conversion = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.convert(
+      amount = 10000.0,
+      fromCurrency = "USD",
+      toCurrency = "EUR",
+      liveRatesToUsd = liveRates,
+      spreadBps = 4.0
+    )
+    // 1 USD = (1.0 / 1.10) EUR = 0.90909 EUR => 10000 USD ≈ 9090.91 EUR
+    assertEquals("USD", conversion.sourceCurrency)
+    assertEquals("EUR", conversion.targetCurrency)
+    assertTrue("Converted EUR amount must be between 9080 and 9100", conversion.convertedAmount in 9080.0..9100.0)
+    assertTrue("Mid market rate must be positive", conversion.midMarketRate > 0.0)
+    assertTrue("Bid rate must be less than Ask rate", conversion.bidRate < conversion.askRate)
+    assertTrue("Spread cost must be positive", conversion.spreadCostAmount > 0.0)
+    assertTrue("Formatted text must contain EUR symbol", conversion.roundedFormattedText.contains("€") || conversion.roundedFormattedText.contains("EUR"))
+
+    // Test JPY zero-decimal rounding
+    val jpyConversion = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.convert(
+      amount = 100.0,
+      fromCurrency = "USD",
+      toCurrency = "JPY",
+      liveRatesToUsd = liveRates
+    )
+    // 100 USD @ ~149 JPY = 14925 JPY (no decimal fraction)
+    assertEquals(jpyConversion.convertedAmount, Math.floor(jpyConversion.convertedAmount), 0.0001)
+
+    // 2. Treasury Consolidated Multi-Vault Valuation
+    val treasuryValuation = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.calculateTreasuryValuation(
+      balances = balances,
+      baseCurrency = "USD",
+      liveRatesToUsd = liveRates
+    )
+    assertEquals("USD", treasuryValuation.baseCurrency)
+    assertEquals("$", treasuryValuation.baseCurrencySymbol)
+    assertTrue("Total valuation must exceed 1,000,000 USD", treasuryValuation.totalValuationInBase > 1_000_000.0)
+    assertEquals(balances.size, treasuryValuation.vaultCount)
+    assertTrue("Must have vault breakdowns", treasuryValuation.vaultBreakdowns.isNotEmpty())
+    assertNotNull("Top currency exposure must be determined", treasuryValuation.topCurrencyExposure)
+    assertTrue("Top exposure percentage must be positive", treasuryValuation.topExposurePercent > 0.0)
+
+    // 3. Treasury Swap Execution Quote with Wholesale Spread
+    val swapQuote = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.calculateSwapExecutionQuote(
+      fromCurrency = "USD",
+      toCurrency = "EUR",
+      amount = 500000.0,
+      liveRatesToUsd = liveRates,
+      isInstitutionalWholesale = true
+    )
+    assertEquals("USD", swapQuote.fromCurrency)
+    assertEquals("EUR", swapQuote.toCurrency)
+    assertTrue("Execution rate must be lower than mid-rate due to spread", swapQuote.executionRate < swapQuote.marketMidRate)
+    assertTrue("To amount received must be positive", swapQuote.toAmountReceived > 0.0)
+    assertTrue("Clearing rail must be SEPA Instant or Target2", swapQuote.clearingRail.contains("SEPA") || swapQuote.clearingRail.contains("Target2"))
+
+    // 4. Treasury Vault Portfolio Rebalancing
+    val targetAllocations = mapOf(
+      "USD" to 50.0,
+      "EUR" to 25.0,
+      "GBP" to 15.0,
+      "CHF" to 10.0
+    )
+    val rebalanceOrders = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.calculatePortfolioRebalance(
+      balances = balances,
+      targetAllocationsPercent = targetAllocations,
+      baseCurrency = "USD",
+      liveRatesToUsd = liveRates
+    )
+    assertTrue("Rebalancing orders must be generated", rebalanceOrders.isNotEmpty())
+    val usdOrder = rebalanceOrders.find { it.currencyCode == "USD" }
+    assertNotNull(usdOrder)
+    assertNotNull(usdOrder!!.action)
+
+    // 5. Invoicing Multi-Currency Quotation with Real-Time Conversion & Hedging Volatility Buffer
+    val invoicePricing = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.calculateInvoiceMultiCurrencyPricing(
+      invoiceNumber = "INV-TEST-001",
+      subtotal = 100000.0,
+      originalCurrency = "USD",
+      settlementCurrency = "EUR",
+      vatRatePercent = 19.0,
+      paymentTermsDays = 30,
+      liveRatesToUsd = liveRates,
+      includeVolatilityBuffer = true
+    )
+    assertEquals("INV-TEST-001", invoicePricing.invoiceNumber)
+    assertEquals(100000.0, invoicePricing.originalAmount, 0.01)
+    assertEquals(19000.0, invoicePricing.originalVatAmount, 0.01)
+    assertEquals(119000.0, invoicePricing.originalGrossTotal, 0.01)
+    assertTrue("Settlement amount in EUR must be calculated", invoicePricing.settlementAmount > 0.0)
+    assertTrue("Hedging buffer percent must be 1.5% for Net 30", invoicePricing.hedgingBufferPercent == 1.5)
+    assertTrue("Hedging buffer amount must be positive", invoicePricing.hedgingBufferAmount > 0.0)
+    assertTrue("Total with buffer must exceed settlement gross total", invoicePricing.totalWithHedgingBuffer > invoicePricing.settlementGrossTotal)
+    assertTrue("Jurisdiction citation must reference EU Directive", invoicePricing.taxJurisdictionCitation.contains("2006/112/EC") || invoicePricing.taxJurisdictionCitation.contains("EU"))
+
+    // 6. Dual-Currency Line Items Computation
+    val lineItems = listOf(
+      com.example.worldbusiness.data.model.CrossBorderInvoiceItem("Architecture SLA", 2.0, 25000.0, "998313", 0.0),
+      com.example.worldbusiness.data.model.CrossBorderInvoiceItem("Clearing Engine Gateway", 1.0, 50000.0, "998313", 0.0)
+    )
+    val dualLineItems = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.calculateDualCurrencyLineItems(
+      items = lineItems,
+      originalCurrency = "USD",
+      settlementCurrency = "GBP",
+      liveRatesToUsd = liveRates
+    )
+    assertEquals(2, dualLineItems.size)
+    assertTrue("Original total must match", dualLineItems.sumOf { it.originalTotal } == 100000.0)
+    assertTrue("Settlement total in GBP must be positive", dualLineItems.sumOf { it.settlementTotal } > 0.0)
+
+    // 7. Settlement Realized FX Gain/Loss Analysis
+    // Invoice issued at 1 EUR = 1.08 USD, settled at 1 EUR = 1.12 USD (EUR appreciated -> USD gain)
+    val fxImpactGain = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.calculateSettlementFxGainLoss(
+      invoiceNumber = "INV-SETTLE-001",
+      invoiceAmount = 100000.0,
+      invoiceCurrency = "EUR",
+      settlementCurrency = "USD",
+      issuedRateToUsd = 1.08,
+      settledRateToUsd = 1.12
+    )
+    assertTrue("Must be classified as FX Gain", fxImpactGain.isGain)
+    assertEquals(4000.0, fxImpactGain.realizedGainLossAmountUsd, 0.01)
+    assertTrue("Accounting entry must reference ASC 830 or FX Operating Reserve", fxImpactGain.accountingEntry.contains("ASC 830") || fxImpactGain.accountingEntry.contains("Gain"))
+
+    // 8. Value-at-Risk (VaR) Estimation
+    val var95 = com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper.calculateTreasuryValueAtRisk(
+      balances = balances,
+      baseCurrency = "USD",
+      liveRatesToUsd = liveRates
+    )
+    assertTrue("Treasury 95% 1-day VaR must be positive", var95 > 0.0)
+  }
+
+  @Test
+  fun `test firebase enterprise firestore configuration and repository instantiation`() {
+    val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+    if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
+      com.google.firebase.FirebaseApp.initializeApp(context)
+    }
+    val databaseId = context.getString(com.example.R.string.firestore_database_id)
+    assertNotNull("Firestore database ID must be provisioned in firebase_applet_config.xml", databaseId)
+    assertTrue("Firestore database ID must be non-empty", databaseId.isNotBlank())
+    assertEquals("ai-studio-android-worldbus-b89fa850-f80a-4b2e-9598-338661fcdfca", databaseId)
+
+    // Instantiate FirebaseSyncRepository with custom database ID
+    val syncRepo = com.example.worldbusiness.data.remote.FirebaseSyncRepository(context)
+    assertNotNull("FirebaseSyncRepository must be created", syncRepo)
+    assertFalse("Default unauthenticated state before Google Sign-In", syncRepo.isAuthenticated)
+  }
 }

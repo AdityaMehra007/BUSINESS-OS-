@@ -122,6 +122,7 @@ import com.example.worldbusiness.ui.components.RegulatoryThresholdAlertCard
 import com.example.worldbusiness.ui.components.TreasuryBalanceTrendVisualization
 import com.example.worldbusiness.ui.components.TreasuryComplianceAlertView
 import com.example.worldbusiness.ui.components.TreasuryHedgingView
+import com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -1507,12 +1508,17 @@ private fun LiveCurrencyConverterCard(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Real-time Conversion Quote Grid
+        // Real-time Conversion Quote Grid powered by MultiCurrencyConversionHelper
+        val liveRates = accounts.associate { it.currencyCode to it.rateToUsd }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             accounts.filter { it.currencyCode != sourceCurrency }.forEach { target ->
-                val targetUsdRate = target.rateToUsd
-                val crossRate = if (targetUsdRate > 0.0) sourceUsdRate / targetUsdRate else 1.0
-                val convertedTotal = amount * crossRate
+                val conversion = MultiCurrencyConversionHelper.convert(
+                    amount = amount,
+                    fromCurrency = sourceCurrency,
+                    toCurrency = target.currencyCode,
+                    liveRatesToUsd = liveRates,
+                    spreadBps = 3.0
+                )
                 val color = Formatters.getCurrencyColor(target.currencyCode)
 
                 Row(
@@ -1549,21 +1555,29 @@ private fun LiveCurrencyConverterCard(
                                 color = TextPrimary
                             )
                             Text(
-                                text = "1 $sourceCurrency = ${Formatters.formatRate(crossRate)} ${target.currencyCode}",
-                                fontSize = 9.sp,
+                                text = "1 $sourceCurrency = ${Formatters.formatRate(conversion.midMarketRate)} ${target.currencyCode} (Inv: ${Formatters.formatRate(conversion.inverseRate)})",
+                                fontSize = 8.sp,
                                 color = TextMuted,
                                 fontFamily = FontFamily.Monospace
                             )
                         }
                     }
 
-                    Text(
-                        text = Formatters.formatCurrency(convertedTotal, target.currencyCode),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = EmeraldPositive,
-                        fontFamily = FontFamily.Monospace
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = conversion.roundedFormattedText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldPositive,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Spread: 3 bps (${target.symbol}${String.format(Locale.US, "%.2f", conversion.spreadCostAmount)})",
+                            fontSize = 8.sp,
+                            color = TextMuted,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
         }
@@ -1679,12 +1693,17 @@ private fun FxSwapExecutionSection(
     val fromRecord = balances.find { it.currencyCode == fromCurrency }
     val toRecord = balances.find { it.currencyCode == toCurrency }
 
-    val fromUsdRate = fromRecord?.rateToUsd ?: 1.0
-    val toUsdRate = toRecord?.rateToUsd ?: 1.0
-    val effectiveCrossRate = if (toUsdRate > 0.0) fromUsdRate / toUsdRate else 1.0
-
     val swapAmount = swapAmountStr.toDoubleOrNull() ?: 0.0
-    val convertedAmount = swapAmount * effectiveCrossRate
+    val liveRates = balances.associate { it.currencyCode to it.rateToUsd }
+    val swapQuote = MultiCurrencyConversionHelper.calculateSwapExecutionQuote(
+        fromCurrency = fromCurrency,
+        toCurrency = toCurrency,
+        amount = swapAmount,
+        liveRatesToUsd = liveRates,
+        isInstitutionalWholesale = true
+    )
+    val convertedAmount = swapQuote.toAmountReceived
+    val effectiveCrossRate = swapQuote.executionRate
 
     Column(
         modifier = Modifier
@@ -1897,14 +1916,14 @@ private fun FxSwapExecutionSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Rate: 1 $fromCurrency = ${Formatters.formatRate(effectiveCrossRate)} $toCurrency",
-                fontSize = 10.sp,
+                text = "Rate: 1 $fromCurrency = ${Formatters.formatRate(effectiveCrossRate)} $toCurrency (Mid: ${Formatters.formatRate(swapQuote.marketMidRate)})",
+                fontSize = 9.sp,
                 color = CyanAccent,
                 fontFamily = FontFamily.Monospace
             )
             Text(
-                text = "Route: SWIFT GPI / ISO 20022",
-                fontSize = 10.sp,
+                text = "Rail: ${swapQuote.clearingRail} (${swapQuote.estimatedSettlementTime})",
+                fontSize = 9.sp,
                 color = TextSecondary,
                 fontFamily = FontFamily.Monospace
             )

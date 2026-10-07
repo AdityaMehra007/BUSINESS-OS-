@@ -41,6 +41,10 @@ import com.example.worldbusiness.data.model.RegulatoryThresholdAlert
 import com.example.worldbusiness.data.model.RegulatoryThresholdStats
 import com.example.worldbusiness.data.model.ThresholdAlertStatus
 import com.example.worldbusiness.data.repository.RegulatoryThresholdEngine
+import com.example.worldbusiness.data.repository.MultiCurrencyConversionHelper
+import com.example.worldbusiness.data.repository.DetailedConversionResult
+import com.example.worldbusiness.data.repository.MultiCurrencyTreasuryValuation
+import com.example.worldbusiness.data.repository.InvoiceMultiCurrencyQuote
 import com.example.worldbusiness.data.repository.AuditCryptographicEngine
 import com.example.worldbusiness.data.repository.PayrollTaxEngine
 import com.example.worldbusiness.data.repository.PredictiveCashFlowEngine
@@ -981,6 +985,39 @@ class WorldBusinessViewModel(
                 _conversionQuoteState.value = ConversionUiState.Error(e.message ?: "Failed to calculate conversion rate")
             }
         }
+    }
+
+    /**
+     * Real-time Multi-Currency Conversion Helper methods for Treasury & Invoicing
+     */
+    fun getMultiCurrencyConversion(amount: Double, from: String, to: String): DetailedConversionResult {
+        val liveRates = fxBalances.value.associate { it.currencyCode to it.rateToUsd }
+        return MultiCurrencyConversionHelper.convert(amount, from, to, liveRates)
+    }
+
+    fun getMultiCurrencyTreasuryValuation(baseCurrency: String = "USD"): MultiCurrencyTreasuryValuation {
+        val liveRates = fxBalances.value.associate { it.currencyCode to it.rateToUsd }
+        return MultiCurrencyConversionHelper.calculateTreasuryValuation(fxBalances.value, baseCurrency, liveRates)
+    }
+
+    fun getInvoiceMultiCurrencyPricing(
+        invoiceNumber: String,
+        amount: Double,
+        fromCurrency: String,
+        toCurrency: String,
+        vatRate: Double,
+        termsDays: Int = 30
+    ): InvoiceMultiCurrencyQuote {
+        val liveRates = fxBalances.value.associate { it.currencyCode to it.rateToUsd }
+        return MultiCurrencyConversionHelper.calculateInvoiceMultiCurrencyPricing(
+            invoiceNumber = invoiceNumber,
+            subtotal = amount,
+            originalCurrency = fromCurrency,
+            settlementCurrency = toCurrency,
+            vatRatePercent = vatRate,
+            paymentTermsDays = termsDays,
+            liveRatesToUsd = liveRates
+        )
     }
 }
 

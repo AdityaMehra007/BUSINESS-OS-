@@ -21,7 +21,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +51,9 @@ import com.example.ui.theme.TextSecondary
 fun ExecutiveHeader(
     consolidatedCashUsd: Double,
     activeEntitiesCount: Int,
+    userEmail: String? = null,
+    onTriggerCloudSync: (() -> Unit)? = null,
+    onSignOut: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -121,29 +126,54 @@ fun ExecutiveHeader(
                 }
             }
 
-            // Security & System Status Pill
             Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(SurfaceElevated)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Security,
-                    contentDescription = "Security Status",
-                    tint = EmeraldPositive,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "SWIFT/ISO 20022",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = EmeraldPositive,
-                    fontFamily = FontFamily.Monospace
-                )
+                // Cloud Firestore Sync Pill
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SurfaceElevated)
+                        .border(1.dp, if (userEmail != null) CyanAccent.copy(alpha = 0.5f) else BorderSubtle, RoundedCornerShape(6.dp))
+                        .clickable(enabled = onTriggerCloudSync != null) { onTriggerCloudSync?.invoke() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .testTag("cloud_firestore_sync_chip"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (userEmail != null) Icons.Default.CloudDone else Icons.Default.CloudSync,
+                        contentDescription = "Cloud Sync Status",
+                        tint = if (userEmail != null) CyanAccent else GoldAccent,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (userEmail != null) "FIRESTORE SYNC" else "LOCAL ONLY",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (userEmail != null) CyanAccent else GoldAccent,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                // Security & System Status Pill
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SurfaceElevated)
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SWIFT/ISO 20022",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = EmeraldPositive,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
             }
         }
 

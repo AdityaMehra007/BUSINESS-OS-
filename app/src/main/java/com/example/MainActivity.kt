@@ -49,6 +49,7 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.WorldBusinessOSTheme
 import com.example.worldbusiness.data.local.WorldBusinessDatabase
+import com.example.worldbusiness.data.remote.FirebaseSyncRepository
 import com.example.worldbusiness.data.repository.WorldBusinessRepository
 import com.example.worldbusiness.ui.OSNavigationTab
 import com.example.worldbusiness.ui.WorldBusinessViewModel
@@ -56,8 +57,12 @@ import com.example.worldbusiness.ui.WorldBusinessViewModelFactory
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.worldbusiness.ui.components.ExecutiveHeader
+import com.example.worldbusiness.ui.components.FirebaseAuthGate
 import com.example.worldbusiness.ui.components.CurrencyConversionCalculatorModal
+import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.launch
 import com.example.worldbusiness.ui.components.RegulatoryThresholdAlertBanner
 import com.example.worldbusiness.ui.components.RegulatoryThresholdModal
 import com.example.worldbusiness.ui.screens.AuditLogScreen
@@ -77,11 +82,18 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 val database = remember { WorldBusinessDatabase.getDatabase(context) }
                 val repository = remember { WorldBusinessRepository(database) }
+                val syncRepository = remember { FirebaseSyncRepository(context) }
                 val viewModel: WorldBusinessViewModel = viewModel(
                     factory = WorldBusinessViewModelFactory(repository)
                 )
 
-                WorldBusinessApp(viewModel = viewModel)
+                FirebaseAuthGate(syncRepository = syncRepository) { currentUser ->
+                    WorldBusinessApp(
+                        viewModel = viewModel,
+                        syncRepository = syncRepository,
+                        currentUser = currentUser
+                    )
+                }
             }
         }
     }
@@ -91,6 +103,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorldBusinessApp(
     viewModel: WorldBusinessViewModel,
+    syncRepository: FirebaseSyncRepository? = null,
+    currentUser: FirebaseUser? = null,
     modifier: Modifier = Modifier
 ) {
     val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
@@ -132,6 +146,7 @@ fun WorldBusinessApp(
     var showRegulatoryThresholdModal by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(userMessage) {
         userMessage?.let { msg ->
@@ -155,7 +170,23 @@ fun WorldBusinessApp(
             Column {
                 ExecutiveHeader(
                     consolidatedCashUsd = kpis.consolidatedCashUsd,
-                    activeEntitiesCount = kpis.activeEntitiesCount
+                    activeEntitiesCount = kpis.activeEntitiesCount,
+                    userEmail = currentUser?.email,
+                    onTriggerCloudSync = if (syncRepository != null && currentUser != null) {
+                        {
+                            scope.launch {
+                                try {
+                                    val count = syncRepository.syncAllData(entities, invoices, fxBalances)
+                                    snackbarHostState.showSnackbar("Synced $count records to Cloud Firestore Enterprise")
+                                } catch (e: Exception) {
+                                    snackbarHostState.showSnackbar("Cloud sync failed: ${e.message}")
+                                }
+                            }
+                        }
+                    } else null,
+                    onSignOut = if (syncRepository != null && currentUser != null) {
+                        { syncRepository.signOut() }
+                    } else null
                 )
                 RegulatoryThresholdAlertBanner(
                     alerts = regulatoryThresholdAlerts,
