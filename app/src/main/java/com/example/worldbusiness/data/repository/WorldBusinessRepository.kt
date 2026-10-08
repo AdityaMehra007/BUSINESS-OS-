@@ -335,11 +335,38 @@ class WorldBusinessRepository(private val database: WorldBusinessDatabase) {
     }
 
     suspend fun insertShipment(shipment: ShipmentRecord): Long = withContext(Dispatchers.IO) {
-        shipmentDao.insertShipment(shipment)
+        val id = shipmentDao.insertShipment(shipment)
+        recordAuditLog(
+            module = AuditLogModule.LOGISTICS,
+            actionType = AuditActionType.ENTITY_CREATED,
+            sourceJurisdiction = shipment.origin,
+            description = "Commercial freight dispatched: ${shipment.trackingCode} (${shipment.carrier} - ${shipment.incoterm}) Origin: ${shipment.origin} -> Dest: ${shipment.destination}",
+            complianceStandard = "WCO SAFE Framework / Automated Manifest System (AMS)"
+        )
+        id
     }
 
     suspend fun updateShipment(shipment: ShipmentRecord) = withContext(Dispatchers.IO) {
         shipmentDao.updateShipment(shipment)
+    }
+
+    suspend fun updateShipmentStatus(id: Long, newStatus: String, newEta: String? = null) = withContext(Dispatchers.IO) {
+        val existing = shipmentDao.getShipmentById(id)
+        val finalEta = newEta ?: existing?.let {
+            LogisticsDeliveryCalculatorEngine.recalibrateShipmentEta(it, newStatus)
+        } ?: "Oct 15, 2026"
+        shipmentDao.updateStatusAndEta(id, newStatus, finalEta)
+        recordAuditLog(
+            module = AuditLogModule.LOGISTICS,
+            actionType = AuditActionType.SHIPMENT_STATUS_UPDATED,
+            sourceJurisdiction = existing?.destination ?: "GLOBAL",
+            description = "Shipment #${existing?.trackingCode ?: id} status updated to $newStatus (Revised ETA: $finalEta)",
+            complianceStandard = "WCO SAFE Framework / Automated Manifest System (AMS)"
+        )
+    }
+
+    suspend fun deleteShipment(shipment: ShipmentRecord) = withContext(Dispatchers.IO) {
+        shipmentDao.deleteShipment(shipment)
     }
 
     suspend fun insertSupplier(supplier: GlobalSupplierRecord): Long = withContext(Dispatchers.IO) {

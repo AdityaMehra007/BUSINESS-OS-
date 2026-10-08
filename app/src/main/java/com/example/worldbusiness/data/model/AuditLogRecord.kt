@@ -27,6 +27,7 @@ enum class AuditActionType(val label: String) {
     ENTITY_CREATED("Corporate Subsidiary Incorporated"),
     ENTITY_STATUS_UPDATED("Entity Standing Status Updated"),
     SHIPMENT_DISPATCHED("International Freight Dispatched"),
+    SHIPMENT_STATUS_UPDATED("Shipment Customs & Transit Status Updated"),
     PAYROLL_EXECUTED("Cross-Border Global Payroll Executed"),
     AML_FLAG_REMEDIATED("Compliance AML Alert Remediated"),
     SECURITY_KEY_ROTATED("Cryptographic Key Rotated"),

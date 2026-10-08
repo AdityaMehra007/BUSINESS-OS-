@@ -87,6 +87,8 @@ import com.example.worldbusiness.data.model.FormattedCrossBorderInvoice
 import com.example.worldbusiness.data.model.FxBalanceRecord
 import com.example.worldbusiness.data.model.InvoiceRecord
 import com.example.worldbusiness.data.repository.FormattedInvoiceEngine
+import com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine
+import androidx.compose.material.icons.filled.PictureAsPdf
 import java.util.Locale
 
 /**
@@ -132,6 +134,26 @@ fun FormattedCrossBorderInvoiceModal(
         containerColor = activeBg,
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Save and Generate PDF Document
+                Button(
+                    onClick = {
+                        try {
+                            val res = CrossBorderInvoicePdfEngine.generateFromFormattedInvoice(context, doc)
+                            Toast.makeText(context, "Saved PDF: ${res.file.name} (${res.formattedFileSize})", Toast.LENGTH_SHORT).show()
+                            context.startActivity(CrossBorderInvoicePdfEngine.createViewPdfIntent(context, res.file))
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "PDF Export: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPositive, contentColor = Color.White),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.testTag("btn_save_invoice_pdf")
+                ) {
+                    Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = "PDF", modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("SAVE PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+
                 // Export Formatted Text
                 Button(
                     onClick = {
@@ -147,7 +169,7 @@ fun FormattedCrossBorderInvoiceModal(
                 ) {
                     Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("COPY INVOICE", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    Text("COPY", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 }
 
                 TextButton(onClick = onDismiss) {

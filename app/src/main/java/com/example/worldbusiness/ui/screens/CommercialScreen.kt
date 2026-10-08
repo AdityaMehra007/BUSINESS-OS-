@@ -13,6 +13,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.CyanAccent
+import com.example.ui.theme.SurfaceDark
+import com.example.ui.theme.SurfaceElevated
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
 import com.example.worldbusiness.data.model.EntityRecord
 import com.example.worldbusiness.data.model.FxBalanceRecord
 import com.example.worldbusiness.data.model.InvoiceRecord
@@ -21,9 +49,15 @@ import com.example.worldbusiness.data.repository.SyncOperationState
 import com.example.worldbusiness.ui.components.CrossBorderInvoiceManager
 import com.example.worldbusiness.ui.components.DocumentScannerDialog
 
+enum class CommercialSubView(val label: String) {
+    LEDGER("Commercial Ledger"),
+    PDF_STUDIO("PDF Export Studio")
+}
+
 /**
  * Cross-Border Commercial Ledger & Invoicing Screen.
- * Hosts the CrossBorderInvoiceManager for multi-currency invoicing, VAT/tax calculations, and status tracking.
+ * Hosts the CrossBorderInvoiceManager for multi-currency invoicing, VAT/tax calculations, and status tracking,
+ * as well as the CrossBorderInvoicePdfScreen for generating and saving publication-ready invoice PDFs.
  */
 @Composable
 fun CommercialScreen(
@@ -52,33 +86,96 @@ fun CommercialScreen(
     onSyncLocalInvoices: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var activeSubView by remember { mutableStateOf(CommercialSubView.LEDGER) }
     var showScannerDialog by remember { mutableStateOf(false) }
 
-    LazyColumn(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .testTag("commercial_screen"),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .testTag("commercial_screen")
     ) {
-        item {
-            CrossBorderInvoiceManager(
+        // Top Sub-view Selector
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(SurfaceElevated)
+                .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                .padding(4.dp)
+                .testTag("commercial_subview_selector"),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            CommercialSubView.values().forEach { subView ->
+                val isSelected = activeSubView == subView
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isSelected) CyanAccent.copy(alpha = 0.2f) else SurfaceDark)
+                        .border(1.dp, if (isSelected) CyanAccent else BorderSubtle, RoundedCornerShape(6.dp))
+                        .clickable { activeSubView = subView }
+                        .padding(vertical = 8.dp)
+                        .testTag("subview_${subView.name.lowercase()}"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = if (subView == CommercialSubView.LEDGER) Icons.Default.Receipt else Icons.Default.PictureAsPdf,
+                            contentDescription = subView.label,
+                            tint = if (isSelected) CyanAccent else TextMuted,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = subView.label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) CyanAccent else TextPrimary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+        }
+
+        if (activeSubView == CommercialSubView.PDF_STUDIO) {
+            CrossBorderInvoicePdfScreen(
                 invoices = invoices,
                 entities = entities,
                 fxBalances = fxBalances,
-                onCreateInvoice = onCreateInvoice,
-                onUpdateInvoiceStatus = onUpdateInvoiceStatus,
-                liveCurrencyFeed = liveCurrencyFeed,
-                onRefreshRates = onRefreshRates,
-                onOpenScanner = { showScannerDialog = true },
-                isOfflineMode = isOfflineMode,
-                pendingSyncCount = pendingSyncCount,
-                syncState = syncState,
-                lastSyncTimestamp = lastSyncTimestamp,
-                onToggleOfflineMode = onToggleOfflineMode,
-                onSyncLocalInvoices = onSyncLocalInvoices
+                onBack = { activeSubView = CommercialSubView.LEDGER }
             )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                item {
+                    CrossBorderInvoiceManager(
+                        invoices = invoices,
+                        entities = entities,
+                        fxBalances = fxBalances,
+                        onCreateInvoice = onCreateInvoice,
+                        onUpdateInvoiceStatus = onUpdateInvoiceStatus,
+                        liveCurrencyFeed = liveCurrencyFeed,
+                        onRefreshRates = onRefreshRates,
+                        onOpenScanner = { showScannerDialog = true },
+                        isOfflineMode = isOfflineMode,
+                        pendingSyncCount = pendingSyncCount,
+                        syncState = syncState,
+                        lastSyncTimestamp = lastSyncTimestamp,
+                        onToggleOfflineMode = onToggleOfflineMode,
+                        onSyncLocalInvoices = onSyncLocalInvoices
+                    )
+                }
+            }
         }
     }
 

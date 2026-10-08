@@ -265,6 +265,8 @@ fun WorldBusinessApp(
                         selectedHub = selectedHub,
                         macroIndicators = viewModel.macroIndicators,
                         entities = entities,
+                        invoices = invoices,
+                        fxBalances = fxBalances,
                         auditLogs = auditLogs,
                         auditSummaryStats = auditSummaryStats,
                         predictiveReport = predictiveReport,
@@ -400,6 +402,9 @@ fun WorldBusinessApp(
                         invoices = invoices,
                         onDispatchShipment = { origin, dest, carrier, incoterm, desc, value, curr, eta ->
                             viewModel.dispatchShipment(origin, dest, carrier, incoterm, desc, value, curr, eta)
+                        },
+                        onUpdateShipmentStatus = { id, status, eta ->
+                            viewModel.updateShipmentStatus(id, status, eta)
                         },
                         onAddSupplier = { supplier ->
                             viewModel.addSupplier(supplier)

@@ -26,6 +26,15 @@ interface ShipmentDao {
     @Delete
     suspend fun deleteShipment(shipment: ShipmentRecord)
 
+    @Query("SELECT * FROM shipments WHERE id = :id")
+    suspend fun getShipmentById(id: Long): ShipmentRecord?
+
+    @Query("UPDATE shipments SET customsStatus = :newStatus, estimatedArrival = :newEta WHERE id = :id")
+    suspend fun updateStatusAndEta(id: Long, newStatus: String, newEta: String)
+
+    @Query("UPDATE shipments SET customsStatus = :newStatus WHERE id = :id")
+    suspend fun updateStatus(id: Long, newStatus: String)
+
     @Query("SELECT COUNT(*) FROM shipments")
     suspend fun getCount(): Int
 }

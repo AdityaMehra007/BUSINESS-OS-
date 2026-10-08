@@ -741,6 +741,20 @@ class WorldBusinessViewModel(
         }
     }
 
+    fun updateShipmentStatus(id: Long, newStatus: String, newEta: String? = null) {
+        viewModelScope.launch {
+            repository.updateShipmentStatus(id, newStatus, newEta)
+            _userMessage.value = "Shipment #$id customs status updated to ${newStatus.replace('_', ' ')}"
+        }
+    }
+
+    fun deleteShipment(shipment: ShipmentRecord) {
+        viewModelScope.launch {
+            repository.deleteShipment(shipment)
+            _userMessage.value = "Shipment ${shipment.trackingCode} removed from active manifests"
+        }
+    }
+
     fun selectBaseCurrency(currencyCode: String) {
         _selectedBaseCurrency.value = currencyCode
         _userMessage.value = "Conversion base currency set to $currencyCode"

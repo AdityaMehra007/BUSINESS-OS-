@@ -61,14 +61,18 @@ import com.example.worldbusiness.data.model.InvoiceRecord
 import com.example.worldbusiness.data.model.ShipmentRecord
 import com.example.worldbusiness.ui.components.D3GlobalLogisticsVisualizer
 import com.example.worldbusiness.ui.components.Formatters
+import com.example.worldbusiness.ui.components.InternationalLogisticsDashboard
 import com.example.worldbusiness.ui.components.SupplierComplianceColorStatusBarCard
 import com.example.worldbusiness.ui.components.SupplierComplianceDashboard
 import com.example.worldbusiness.ui.components.SupplierComplianceMetrics
 import com.example.worldbusiness.ui.components.SupplyChainTrackingView
+import com.example.worldbusiness.data.model.LogisticsFreightMode
+import com.example.worldbusiness.data.repository.LogisticsDeliveryCalculatorEngine
 import java.util.Locale
 import kotlin.math.roundToInt
 
 enum class LogisticsViewMode(val label: String) {
+    DASHBOARD("Dashboard"),
     LIVE_TRACKING("Telemetry"),
     SUPPLIERS("Suppliers & Risk"),
     D3_RADAR("Global Radar"),
@@ -94,9 +98,10 @@ fun LogisticsScreen(
     onUpdateSupplierCompliance: (id: Long, newStatus: String, notes: String) -> Unit = { _, _, _ -> },
     onUpdateSupplierPaymentTerms: (id: Long, termsDays: Int, description: String, currency: String) -> Unit = { _, _, _, _ -> },
     onCreateInvoiceForSupplier: ((GlobalSupplierRecord) -> Unit)? = null,
+    onUpdateShipmentStatus: ((id: Long, newStatus: String, newEta: String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var viewMode by remember { mutableStateOf(LogisticsViewMode.LIVE_TRACKING) }
+    var viewMode by remember { mutableStateOf(LogisticsViewMode.DASHBOARD) }
     var showDispatchDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("ALL") }
 
@@ -196,6 +201,22 @@ fun LogisticsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         when (viewMode) {
+            LogisticsViewMode.DASHBOARD -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    item {
+                        InternationalLogisticsDashboard(
+                            shipments = shipments,
+                            onUpdateShipmentStatus = onUpdateShipmentStatus ?: { _, _, _ -> },
+                            onDispatchShipmentClick = { showDispatchDialog = true }
+                        )
+                    }
+                }
+            }
+
             LogisticsViewMode.LIVE_TRACKING -> {
                 val supplierMetrics = remember(suppliers) {
                     val total = suppliers.size.coerceAtLeast(1)
@@ -617,6 +638,42 @@ private fun DispatchFreightDialog(
                         unfocusedTextColor = TextPrimary
                     )
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "ESTIMATED ARRIVAL (ETA)",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GoldAccent,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    TextButton(
+                        onClick = {
+                            val oHub = LogisticsDeliveryCalculatorEngine.findHubByKeyword(origin)
+                            val dHub = LogisticsDeliveryCalculatorEngine.findHubByKeyword(destination)
+                            val mode = if (carrier.lowercase(Locale.US).contains("air") || carrier.lowercase(Locale.US).contains("flight")) {
+                                LogisticsFreightMode.AIR_CARGO
+                            } else {
+                                LogisticsFreightMode.OCEAN_CONTAINER
+                            }
+                            val calc = LogisticsDeliveryCalculatorEngine.calculateDeliveryEstimate(oHub, dHub, mode)
+                            eta = calc.calculatedEstimatedDeliveryDate
+                        },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = "⚡ AUTO-CALCULATE ETA",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CyanAccent,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
 
                 OutlinedTextField(
                     value = eta,

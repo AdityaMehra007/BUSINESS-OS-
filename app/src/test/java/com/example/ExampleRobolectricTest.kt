@@ -2069,4 +2069,336 @@ class ExampleRobolectricTest {
     assertNotNull("FirebaseSyncRepository must be created", syncRepo)
     assertFalse("Default unauthenticated state before Google Sign-In", syncRepo.isAuthenticated)
   }
+
+  @Test
+  fun `test cross-border invoice data model and vector pdf generation engine`() {
+    val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+
+    // 1. Test Data Model Creation and Computations
+    val sampleDoc = com.example.worldbusiness.data.model.CrossBorderInvoiceDocument.createSampleInvoice(
+      invoiceNumber = "INV-2026-CH-TEST",
+      currency = "CHF",
+      currencySymbol = "CHF",
+      subtotal = 100000.0,
+      vatRate = 8.1
+    )
+
+    assertEquals("INV-2026-CH-TEST", sampleDoc.invoiceNumber)
+    assertEquals("Apex Global Treasury AG", sampleDoc.exporter.entityName)
+    assertEquals("Stellar Logistics GmbH", sampleDoc.client.clientName)
+    assertEquals("CHF", sampleDoc.currency)
+    assertEquals(100000.0, sampleDoc.subtotal, 0.001)
+    assertEquals(8100.0, sampleDoc.taxAmount, 0.001)
+    assertEquals(108100.0, sampleDoc.netReceivable, 0.001)
+    assertTrue("Total quantity must be 2.0", sampleDoc.totalQuantity == 2.0)
+    assertTrue("Formatted subtotal must contain CHF", sampleDoc.formattedSubtotal().contains("CHF"))
+    assertTrue("Formatted net receivable must contain 108,100", sampleDoc.formattedNetReceivable().contains("108,100"))
+    assertTrue("USD equivalent must contain USD", sampleDoc.formattedUsdEquivalent().contains("USD"))
+
+    // 2. Test PDF Document Generation on Android
+    val pdfResult = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine.generateAndSaveInvoicePdf(
+      context = context,
+      invoiceDoc = sampleDoc
+    )
+
+    assertNotNull("PDF result must not be null", pdfResult)
+    assertTrue("PDF file must exist on storage", pdfResult.file.exists())
+    assertTrue("PDF file size must be greater than 0 bytes", pdfResult.fileSizeBytes > 0)
+    assertEquals(1, pdfResult.pageCount)
+    assertEquals("INV-2026-CH-TEST", pdfResult.invoiceNumber)
+    assertTrue("SHA-256 checksum must be 64 hex characters", pdfResult.sha256Checksum.length == 64)
+
+    // 3. Test Listing Saved Invoices
+    val savedList = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine.listGeneratedInvoices(context)
+    assertTrue("Saved invoices archive must include the generated file", savedList.any { it.name == pdfResult.file.name })
+
+    // 4. Test Intents
+    val viewIntent = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine.createViewPdfIntent(context, pdfResult.file)
+    assertEquals(android.content.Intent.ACTION_VIEW, viewIntent.action)
+    assertEquals("application/pdf", viewIntent.type)
+
+    val shareIntent = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine.createSharePdfIntent(context, pdfResult.file)
+    assertEquals(android.content.Intent.ACTION_SEND, shareIntent.action)
+    assertEquals("application/pdf", shareIntent.type)
+  }
+
+  @Test
+  fun `test financial analytics engine generates monthly revenue, tax liabilities, and invoice status trends`() {
+    val sampleEntities = listOf(
+      com.example.worldbusiness.data.model.EntityRecord(
+        id = 1L,
+        name = "Apex Global Corp (US)",
+        jurisdiction = "United States",
+        countryCode = "US",
+        entityType = "Delaware C-Corp",
+        taxId = "US-EIN-9923841",
+        status = "ACTIVE",
+        baseCurrency = "USD",
+        operatingCapital = 10000000.0,
+        annualFilingDeadline = "2026-10-15",
+        localDirector = "Sarah Jenkins",
+        complianceScore = 98
+      ),
+      com.example.worldbusiness.data.model.EntityRecord(
+        id = 2L,
+        name = "Apex Europe B.V.",
+        jurisdiction = "Netherlands",
+        countryCode = "NL",
+        entityType = "Besloten Vennootschap",
+        taxId = "NL-VAT-882710",
+        status = "ACTIVE",
+        baseCurrency = "EUR",
+        operatingCapital = 5000000.0,
+        annualFilingDeadline = "2026-11-30",
+        localDirector = "Maarten Van Der Berg",
+        complianceScore = 95
+      )
+    )
+
+    val sampleFxBalances = listOf(
+      com.example.worldbusiness.data.model.FxBalanceRecord(
+        currencyCode = "USD",
+        currencyName = "US Dollar",
+        symbol = "$",
+        balance = 5000000.0,
+        rateToUsd = 1.0,
+        dailyChangePercent = 0.0
+      ),
+      com.example.worldbusiness.data.model.FxBalanceRecord(
+        currencyCode = "EUR",
+        currencyName = "Euro",
+        symbol = "€",
+        balance = 3000000.0,
+        rateToUsd = 1.09,
+        dailyChangePercent = 0.25
+      ),
+      com.example.worldbusiness.data.model.FxBalanceRecord(
+        currencyCode = "GBP",
+        currencyName = "British Pound",
+        symbol = "£",
+        balance = 2000000.0,
+        rateToUsd = 1.28,
+        dailyChangePercent = -0.15
+      )
+    )
+
+    val sampleInvoices = listOf(
+      com.example.worldbusiness.data.model.InvoiceRecord(
+        id = 1L,
+        invoiceNumber = "INV-2026-001",
+        issuingEntityName = "Apex Global Corp (US)",
+        clientName = "Stripe Inc",
+        clientCountry = "United States",
+        issueDate = "2026-09-01",
+        dueDate = "2026-10-31",
+        amount = 500000.0,
+        currency = "USD",
+        taxRatePercent = 0.0,
+        status = "PAID",
+        serviceDescription = "Q3 Enterprise API Infrastructure Licensing"
+      ),
+      com.example.worldbusiness.data.model.InvoiceRecord(
+        id = 2L,
+        invoiceNumber = "INV-2026-002",
+        issuingEntityName = "Apex Europe B.V.",
+        clientName = "Siemens AG",
+        clientCountry = "Germany",
+        issueDate = "2026-09-15",
+        dueDate = "2026-11-15",
+        amount = 750000.0,
+        currency = "EUR",
+        taxRatePercent = 19.0,
+        status = "IN_CLEARING",
+        serviceDescription = "Industrial SaaS Deployment Phase 2"
+      ),
+      com.example.worldbusiness.data.model.InvoiceRecord(
+        id = 3L,
+        invoiceNumber = "INV-2026-003",
+        issuingEntityName = "Apex Global Corp (US)",
+        clientName = "Barclays PLC",
+        clientCountry = "United Kingdom",
+        issueDate = "2026-09-20",
+        dueDate = "2026-11-30",
+        amount = 350000.0,
+        currency = "GBP",
+        taxRatePercent = 20.0,
+        status = "ISSUED",
+        serviceDescription = "Treasury Management Consulting Services"
+      )
+    )
+
+    // 1. Test 6-Month Range Analytics
+    val analytics6M = com.example.worldbusiness.data.repository.FinancialAnalyticsEngine.generateAnalytics(
+      invoices = sampleInvoices,
+      entities = sampleEntities,
+      fxBalances = sampleFxBalances,
+      timeRange = com.example.worldbusiness.data.model.FinancialTimeRange.RANGE_6M
+    )
+
+    assertEquals(6, analytics6M.revenueSeries.size)
+    assertEquals(6, analytics6M.taxSeries.size)
+    assertEquals(6, analytics6M.invoiceSeries.size)
+    assertTrue("Total gross revenue must be positive", analytics6M.totalGrossRevenue > 0)
+    assertTrue("Total tax liabilities must be positive", analytics6M.totalTaxLiabilities > 0)
+    assertTrue("Average DSO must be within reasonable bounds (20-60 days)", analytics6M.averageDsoDays in 20..60)
+    assertTrue("Annualized run rate must exceed 6M revenue", analytics6M.currentRunRateAnnualized > analytics6M.totalGrossRevenue)
+
+    // Check revenue series calculations
+    val firstMonthRev = analytics6M.revenueSeries.first()
+    assertTrue("Operating expenses must be positive", firstMonthRev.operatingExpenses > 0)
+    assertEquals(firstMonthRev.grossRevenue - firstMonthRev.operatingExpenses, firstMonthRev.netRevenue, 0.01)
+    assertTrue("Profit margin must be positive", firstMonthRev.profitMarginPercent > 0)
+
+    // Check tax series calculations
+    val firstMonthTax = analytics6M.taxSeries.first()
+    assertTrue("VAT/GST must be positive", firstMonthTax.vatGstAmount > 0)
+    assertTrue("WHT must be positive", firstMonthTax.withholdingTaxAmount > 0)
+    assertTrue("CIT must be positive", firstMonthTax.corporateTaxAmount > 0)
+    assertEquals(
+      firstMonthTax.vatGstAmount + firstMonthTax.withholdingTaxAmount + firstMonthTax.corporateTaxAmount,
+      firstMonthTax.totalLiability,
+      0.01
+    )
+
+    // Check invoice status trends
+    val lastMonthInv = analytics6M.invoiceSeries.last()
+    assertTrue("Paid volume must be positive", lastMonthInv.paidVolume > 0)
+    assertTrue("In clearing volume must be positive", lastMonthInv.inClearingVolume > 0)
+    assertTrue("Collection efficiency must be between 0 and 100", lastMonthInv.collectionEfficiencyPercent in 0.0..100.0)
+    assertTrue("DSO days must be positive", lastMonthInv.dsoDays > 0)
+
+    // 2. Test 12-Month & YTD Ranges
+    val analytics12M = com.example.worldbusiness.data.repository.FinancialAnalyticsEngine.generateAnalytics(
+      invoices = sampleInvoices,
+      entities = sampleEntities,
+      fxBalances = sampleFxBalances,
+      timeRange = com.example.worldbusiness.data.model.FinancialTimeRange.RANGE_12M
+    )
+    assertEquals(12, analytics12M.revenueSeries.size)
+    assertEquals(12, analytics12M.taxSeries.size)
+    assertEquals(12, analytics12M.invoiceSeries.size)
+
+    val analyticsYtd = com.example.worldbusiness.data.repository.FinancialAnalyticsEngine.generateAnalytics(
+      invoices = sampleInvoices,
+      entities = sampleEntities,
+      fxBalances = sampleFxBalances,
+      timeRange = com.example.worldbusiness.data.model.FinancialTimeRange.RANGE_YTD
+    )
+    assertEquals(10, analyticsYtd.revenueSeries.size)
+
+    // 3. Test Formatted Currency Outputs
+    assertTrue("Formatted revenue must start with $", analytics6M.formatRevenue().startsWith("$"))
+    assertTrue("Formatted tax must start with $", analytics6M.formatTax().startsWith("$"))
+    assertTrue("Formatted clearing must start with $", analytics6M.formatInClearing().startsWith("$"))
+  }
+
+  @Test
+  fun `test logistics dashboard Room persistence, real-time status updates, and estimated delivery date calculations`() = runBlocking {
+    val engine = com.example.worldbusiness.data.repository.LogisticsDeliveryCalculatorEngine
+    val hubs = engine.GLOBAL_TRADE_HUBS
+
+    val shaHub = hubs.first { it.code == "SHA" }
+    val rtmHub = hubs.first { it.code == "RTM" }
+    val laxHub = hubs.first { it.code == "LAX" }
+    val fraHub = hubs.first { it.code == "FRA" }
+
+    // 1. Test Great-Circle Distance Calculation
+    val distanceShaToRtm = engine.calculateHaversineDistanceKm(
+      shaHub.latitude, shaHub.longitude,
+      rtmHub.latitude, rtmHub.longitude
+    )
+    assertTrue("Distance between Shanghai and Rotterdam should be between 8,500 and 10,500 km", distanceShaToRtm in 8500.0..10500.0)
+
+    // 2. Test Estimated Delivery Date Calculations across Freight Modes
+    // Ocean Container SHA -> RTM
+    val oceanEstimate = engine.calculateDeliveryEstimate(
+      originHub = shaHub,
+      destinationHub = rtmHub,
+      freightMode = com.example.worldbusiness.data.model.LogisticsFreightMode.OCEAN_CONTAINER,
+      clearanceCategory = com.example.worldbusiness.data.model.CustomsClearanceCategory.STANDARD_GENERAL
+    )
+    assertTrue("Ocean container transit days should be between 14 and 35 days", oceanEstimate.totalTransitDays in 14..35)
+    assertTrue("Ocean container nautical miles should be positive", oceanEstimate.nauticalMiles > 4000.0)
+    assertTrue("Delivery confidence should be high", oceanEstimate.deliveryConfidencePercent >= 85)
+    assertTrue("Calculated arrival date string should not be blank", oceanEstimate.calculatedEstimatedDeliveryDate.isNotBlank())
+    assertTrue("Explanation must mention hubs", oceanEstimate.formulaExplanation.contains("Shanghai") && oceanEstimate.formulaExplanation.contains("Rotterdam"))
+
+    // Air Cargo SHA -> FRA
+    val airEstimate = engine.calculateDeliveryEstimate(
+      originHub = shaHub,
+      destinationHub = fraHub,
+      freightMode = com.example.worldbusiness.data.model.LogisticsFreightMode.AIR_CARGO,
+      clearanceCategory = com.example.worldbusiness.data.model.CustomsClearanceCategory.HIGH_TECH_DUAL_USE
+    )
+    assertTrue("Air cargo total transit days should be between 2 and 6 days", airEstimate.totalTransitDays in 2..6)
+    assertTrue("Air cargo cruising hours should be under 24 hours", airEstimate.baseTransitHours < 24.0)
+
+    // Express Courier LAX -> FRA
+    val courierEstimate = engine.calculateDeliveryEstimate(
+      originHub = laxHub,
+      destinationHub = fraHub,
+      freightMode = com.example.worldbusiness.data.model.LogisticsFreightMode.EXPRESS_COURIER
+    )
+    assertTrue("Express courier total transit should be under 5 days", courierEstimate.totalTransitDays <= 5)
+    assertEquals(98, courierEstimate.deliveryConfidencePercent)
+
+    // 3. Test Dynamic ETA Recalibration based on Status
+    val baseShipment = com.example.worldbusiness.data.model.ShipmentRecord(
+      id = 99L,
+      trackingCode = "WBOS-TEST-9901",
+      origin = "Shanghai (SHA), China",
+      destination = "Rotterdam (RTM), Netherlands",
+      carrier = "Maersk Line",
+      incoterm = "CIF",
+      cargoDescription = "Precision Robotic Actuators",
+      cargoValue = 450000.0,
+      currency = "USD",
+      customsStatus = "IN_TRANSIT",
+      estimatedArrival = "Oct 22, 2026"
+    )
+
+    // When held for port inspection, ETA must be recalibrated with inspection buffer
+    val inspectionEta = engine.recalibrateShipmentEta(baseShipment, "PORT_INSPECTION")
+    assertTrue("Inspection ETA must not be blank", inspectionEta.isNotBlank())
+
+    // When cleared, ETA must be expedited for final last-mile delivery
+    val clearedEta = engine.recalibrateShipmentEta(baseShipment, "CLEARED")
+    assertTrue("Cleared ETA must not be blank", clearedEta.isNotBlank())
+
+    // 4. Test Room Database Persistence via Repository
+    val newShipment = com.example.worldbusiness.data.model.ShipmentRecord(
+      trackingCode = "WBOS-ROOM-8821",
+      origin = "Port of Singapore (SIN)",
+      destination = "Port Newark (NYC), USA",
+      carrier = "CMA CGM",
+      incoterm = "DDP",
+      cargoDescription = "High-Density Server Motherboards",
+      cargoValue = 1250000.0,
+      currency = "USD",
+      customsStatus = "IN_TRANSIT",
+      estimatedArrival = oceanEstimate.calculatedEstimatedDeliveryDate
+    )
+
+    val insertedId = repository.insertShipment(newShipment)
+    assertTrue("Inserted shipment ID must be positive", insertedId > 0)
+
+    val shipmentList = repository.allShipments.first()
+    val foundShipment = shipmentList.find { it.trackingCode == "WBOS-ROOM-8821" }
+    assertNotNull("Shipment must be retrievable from Room database", foundShipment)
+    assertEquals("IN_TRANSIT", foundShipment!!.customsStatus)
+    assertEquals("CMA CGM", foundShipment.carrier)
+
+    // Test Real-Time Status Update in Room Database
+    repository.updateShipmentStatus(insertedId, "PORT_INSPECTION", "Oct 28, 2026")
+    val updatedList = repository.allShipments.first()
+    val updatedShipment = updatedList.find { it.id == insertedId }
+    assertNotNull(updatedShipment)
+    assertEquals("PORT_INSPECTION", updatedShipment!!.customsStatus)
+    assertEquals("Oct 28, 2026", updatedShipment.estimatedArrival)
+
+    // Test Audit Log Generation for the Shipment Status Transition
+    val auditLogs = repository.allAuditLogs.first()
+    val statusAudit = auditLogs.find { it.module == com.example.worldbusiness.data.model.AuditLogModule.LOGISTICS.name }
+    assertNotNull("Logistics audit log must be recorded", statusAudit)
+  }
 }

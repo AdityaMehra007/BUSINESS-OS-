@@ -64,12 +64,15 @@ import com.example.worldbusiness.data.model.AuditLogSummaryStats
 import com.example.worldbusiness.data.model.CashFlowHorizon
 import com.example.worldbusiness.data.model.CashFlowScenario
 import com.example.worldbusiness.data.model.EntityRecord
+import com.example.worldbusiness.data.model.FxBalanceRecord
+import com.example.worldbusiness.data.model.InvoiceRecord
 import com.example.worldbusiness.data.model.MacroIndicator
 import com.example.worldbusiness.data.model.PredictiveCashFlowReport
 import com.example.worldbusiness.data.model.RegionalHub
 import com.example.worldbusiness.ui.ExecutiveKpis
 import com.example.worldbusiness.ui.OSNavigationTab
 import com.example.worldbusiness.ui.components.AuditLogDashboardWidget
+import com.example.worldbusiness.ui.components.FinancialAnalyticsChartDashboard
 import com.example.worldbusiness.ui.components.Formatters
 import com.example.worldbusiness.ui.components.InteractiveWorldMap
 import com.example.worldbusiness.ui.components.JurisdictionTaxDeadlinesWidget
@@ -82,6 +85,8 @@ fun CockpitScreen(
     selectedHub: RegionalHub?,
     macroIndicators: List<MacroIndicator>,
     entities: List<EntityRecord> = emptyList(),
+    invoices: List<InvoiceRecord> = emptyList(),
+    fxBalances: List<FxBalanceRecord> = emptyList(),
     auditLogs: List<AuditLogRecord> = emptyList(),
     auditSummaryStats: AuditLogSummaryStats = AuditLogSummaryStats(0, 0, 0, 0.0, 100.0, 0, true),
     predictiveReport: PredictiveCashFlowReport? = null,
@@ -103,6 +108,16 @@ fun CockpitScreen(
         // Consolidated Enterprise Treasury Hero Card
         item {
             ConsolidatedTreasuryCard(kpis = kpis, onNavigateToTreasury = { onNavigateTab(OSNavigationTab.TREASURY) })
+        }
+
+        // Recharts-Inspired Financial Analytics Visualizer: Monthly Revenue, Tax Liabilities & Invoice Status Trends
+        item {
+            FinancialAnalyticsChartDashboard(
+                invoices = invoices,
+                entities = entities,
+                fxBalances = fxBalances,
+                onNavigateToInvoices = { onNavigateTab(OSNavigationTab.COMMERCIAL) }
+            )
         }
 
         // Predictive Cash Flow & Runway Analytics Dashboard Widget
