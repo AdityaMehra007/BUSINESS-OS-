@@ -592,6 +592,35 @@ object CrossBorderInvoicePdfEngine {
         }
     }
 
+    /**
+     * Copies the generated PDF file to the public Downloads / Documents directory or downloads folder
+     * using MediaStore or public external storage, and triggers a download completion broadcast.
+     */
+    fun exportToDownloadsFolder(context: Context, pdfFile: File): File? {
+        return try {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (downloadsDir != null) {
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs()
+                }
+                val destFile = File(downloadsDir, pdfFile.name)
+                pdfFile.copyTo(destFile, overwrite = true)
+
+                // Notify media scanner so the download is immediately visible in file manager / Downloads app
+                val mediaScanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
+                    data = Uri.fromFile(destFile)
+                }
+                context.sendBroadcast(mediaScanIntent)
+                destFile
+            } else {
+                pdfFile
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving to public downloads: ${e.message}")
+            pdfFile
+        }
+    }
+
     private fun calculateSha256(file: File): String {
         return try {
             val digest = MessageDigest.getInstance("SHA-256")

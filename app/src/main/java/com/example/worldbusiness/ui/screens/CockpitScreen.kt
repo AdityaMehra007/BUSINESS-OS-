@@ -69,9 +69,11 @@ import com.example.worldbusiness.data.model.InvoiceRecord
 import com.example.worldbusiness.data.model.MacroIndicator
 import com.example.worldbusiness.data.model.PredictiveCashFlowReport
 import com.example.worldbusiness.data.model.RegionalHub
+import com.example.worldbusiness.data.model.ShipmentRecord
 import com.example.worldbusiness.ui.ExecutiveKpis
 import com.example.worldbusiness.ui.OSNavigationTab
 import com.example.worldbusiness.ui.components.AuditLogDashboardWidget
+import com.example.worldbusiness.ui.components.ExecutiveLogisticsCorridorStreamCard
 import com.example.worldbusiness.ui.components.FinancialAnalyticsChartDashboard
 import com.example.worldbusiness.ui.components.Formatters
 import com.example.worldbusiness.ui.components.InteractiveWorldMap
@@ -87,6 +89,7 @@ fun CockpitScreen(
     entities: List<EntityRecord> = emptyList(),
     invoices: List<InvoiceRecord> = emptyList(),
     fxBalances: List<FxBalanceRecord> = emptyList(),
+    shipments: List<ShipmentRecord> = emptyList(),
     auditLogs: List<AuditLogRecord> = emptyList(),
     auditSummaryStats: AuditLogSummaryStats = AuditLogSummaryStats(0, 0, 0, 0.0, 100.0, 0, true),
     predictiveReport: PredictiveCashFlowReport? = null,
@@ -96,6 +99,7 @@ fun CockpitScreen(
     onSelectHub: (RegionalHub?) -> Unit,
     onNavigateTab: (OSNavigationTab) -> Unit,
     onOpenCalculator: () -> Unit = {},
+    onUpdateShipmentStatus: (id: Long, newStatus: String, newEta: String?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -131,6 +135,15 @@ fun CockpitScreen(
                     onNavigateToInvoices = { onNavigateTab(OSNavigationTab.COMMERCIAL) }
                 )
             }
+        }
+
+        // Active International Freight Corridors & Real-Time Logistics Telemetry Widget
+        item {
+            ExecutiveLogisticsCorridorStreamCard(
+                shipments = shipments,
+                onNavigateToLogistics = { onNavigateTab(OSNavigationTab.LOGISTICS) },
+                onUpdateShipmentStatus = onUpdateShipmentStatus
+            )
         }
 
         // Interactive Global Radar
@@ -226,25 +239,37 @@ private fun ConsolidatedTreasuryCard(
                 }
 
                 Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(EmeraldPositive.copy(alpha = 0.15f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(EmeraldPositive.copy(alpha = 0.15f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TrendingUp,
+                            contentDescription = "Up",
+                            tint = EmeraldPositive,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "+2.48% 24H",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldPositive,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
                     Icon(
-                        imageVector = Icons.Default.TrendingUp,
-                        contentDescription = "Up",
-                        tint = EmeraldPositive,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = "+2.48% 24H",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = EmeraldPositive,
-                        fontFamily = FontFamily.Monospace
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = "Open Treasury Hub",
+                        tint = CyanAccent.copy(alpha = 0.7f),
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }

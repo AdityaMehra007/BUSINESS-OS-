@@ -8,9 +8,13 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -31,17 +35,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.CyanAccent
+import com.example.ui.theme.GoldAccent
+import com.example.ui.theme.RoseNegative
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.SurfaceVariantDark
@@ -65,6 +74,7 @@ import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.launch
 import com.example.worldbusiness.ui.components.RegulatoryThresholdAlertBanner
 import com.example.worldbusiness.ui.components.RegulatoryThresholdModal
+import com.example.worldbusiness.ui.components.SystemHealthInspectorModal
 import com.example.worldbusiness.ui.screens.AuditLogScreen
 import com.example.worldbusiness.ui.screens.CockpitScreen
 import com.example.worldbusiness.ui.screens.CommercialScreen
@@ -144,6 +154,7 @@ fun WorldBusinessApp(
     val regulatoryThresholdAlerts by viewModel.regulatoryThresholdAlerts.collectAsStateWithLifecycle()
     val regulatoryThresholdStats by viewModel.regulatoryThresholdStats.collectAsStateWithLifecycle()
     var showRegulatoryThresholdModal by remember { mutableStateOf(false) }
+    var showSystemHealthModal by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -167,7 +178,7 @@ fun WorldBusinessApp(
             .fillMaxSize()
             .testTag("world_business_scaffold"),
         topBar = {
-            Column {
+            Column(modifier = Modifier.statusBarsPadding()) {
                 ExecutiveHeader(
                     consolidatedCashUsd = kpis.consolidatedCashUsd,
                     activeEntitiesCount = kpis.activeEntitiesCount,
@@ -186,7 +197,8 @@ fun WorldBusinessApp(
                     } else null,
                     onSignOut = if (syncRepository != null && currentUser != null) {
                         { syncRepository.signOut() }
-                    } else null
+                    } else null,
+                    onOpenSystemHealth = { showSystemHealthModal = true }
                 )
                 RegulatoryThresholdAlertBanner(
                     alerts = regulatoryThresholdAlerts,
@@ -195,51 +207,83 @@ fun WorldBusinessApp(
             }
         },
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .testTag("main_navigation_bar"),
-                containerColor = SurfaceDark
-            ) {
-                OSNavigationTab.values().forEach { tab ->
-                    val isSelected = currentTab == tab
-                    val icon = when (tab) {
-                        OSNavigationTab.COCKPIT -> Icons.Default.Public
-                        OSNavigationTab.ENTITIES -> Icons.Default.AccountBalance
-                        OSNavigationTab.TREASURY -> Icons.Default.AccountBalanceWallet
-                        OSNavigationTab.COMMERCIAL -> Icons.Default.Receipt
-                        OSNavigationTab.WORKFORCE -> Icons.Default.Groups
-                        OSNavigationTab.LOGISTICS -> Icons.Default.LocalShipping
-                        OSNavigationTab.AUDIT -> Icons.Default.Security
-                    }
+            Column {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(BorderSubtle)
+                )
+                NavigationBar(
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .testTag("main_navigation_bar"),
+                    containerColor = SurfaceDark
+                ) {
+                    OSNavigationTab.values().forEach { tab ->
+                        val isSelected = currentTab == tab
+                        val icon = when (tab) {
+                            OSNavigationTab.COCKPIT -> Icons.Default.Public
+                            OSNavigationTab.ENTITIES -> Icons.Default.AccountBalance
+                            OSNavigationTab.TREASURY -> Icons.Default.AccountBalanceWallet
+                            OSNavigationTab.COMMERCIAL -> Icons.Default.Receipt
+                            OSNavigationTab.WORKFORCE -> Icons.Default.Groups
+                            OSNavigationTab.LOGISTICS -> Icons.Default.LocalShipping
+                            OSNavigationTab.AUDIT -> Icons.Default.Security
+                        }
+                        val hasNotification = when (tab) {
+                            OSNavigationTab.COMMERCIAL -> pendingInvoiceSyncCount > 0 || invoices.any { it.status == "PENDING" }
+                            OSNavigationTab.LOGISTICS -> shipments.any { it.customsStatus == "IN_TRANSIT" || it.customsStatus == "PORT_INSPECTION" }
+                            OSNavigationTab.AUDIT -> regulatoryThresholdAlerts.isNotEmpty() || complianceAlerts.isNotEmpty()
+                            else -> false
+                        }
 
-                    NavigationBarItem(
-                        selected = isSelected,
-                        onClick = { viewModel.selectTab(tab) },
-                        icon = {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = tab.label,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = tab.label,
-                                fontSize = 9.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = SurfaceDark,
-                            selectedTextColor = CyanAccent,
-                            indicatorColor = CyanAccent,
-                            unselectedIconColor = TextMuted,
-                            unselectedTextColor = TextMuted
-                        ),
-                        modifier = Modifier.testTag("nav_item_${tab.name.lowercase()}")
-                    )
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = { viewModel.selectTab(tab) },
+                            alwaysShowLabel = false,
+                            icon = {
+                                Box {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = tab.label,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    if (hasNotification && !isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .align(Alignment.TopEnd)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (tab == OSNavigationTab.AUDIT) RoseNegative
+                                                    else if (tab == OSNavigationTab.LOGISTICS) CyanAccent
+                                                    else GoldAccent
+                                                )
+                                        )
+                                    }
+                                }
+                            },
+                            label = {
+                                Text(
+                                    text = tab.label,
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = SurfaceDark,
+                                selectedTextColor = CyanAccent,
+                                indicatorColor = CyanAccent,
+                                unselectedIconColor = TextMuted,
+                                unselectedTextColor = TextMuted
+                            ),
+                            modifier = Modifier.testTag("nav_item_${tab.name.lowercase()}")
+                        )
+                    }
                 }
             }
         },
@@ -267,6 +311,7 @@ fun WorldBusinessApp(
                         entities = entities,
                         invoices = invoices,
                         fxBalances = fxBalances,
+                        shipments = shipments,
                         auditLogs = auditLogs,
                         auditSummaryStats = auditSummaryStats,
                         predictiveReport = predictiveReport,
@@ -275,7 +320,10 @@ fun WorldBusinessApp(
                         onExportCashForecastCsv = { viewModel.exportCashForecastCsv() },
                         onSelectHub = { viewModel.selectHub(it) },
                         onNavigateTab = { viewModel.selectTab(it) },
-                        onOpenCalculator = { viewModel.openConversionCalculator() }
+                        onOpenCalculator = { viewModel.openConversionCalculator() },
+                        onUpdateShipmentStatus = { id, status, eta ->
+                            viewModel.updateShipmentStatus(id, status, eta)
+                        }
                     )
                 }
                 OSNavigationTab.ENTITIES -> {
@@ -476,6 +524,18 @@ fun WorldBusinessApp(
             onDismiss = { showRegulatoryThresholdModal = false },
             onAcknowledge = { viewModel.acknowledgeThresholdAlert(it) },
             onFileReport = { viewModel.fileRegulatoryReport(it) }
+        )
+    }
+
+    if (showSystemHealthModal) {
+        SystemHealthInspectorModal(
+            entities = entities,
+            invoices = invoices,
+            balances = fxBalances,
+            shipments = shipments,
+            auditLogs = auditLogs,
+            userEmail = currentUser?.email,
+            onDismiss = { showSystemHealthModal = false }
         )
     }
 }

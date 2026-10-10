@@ -46,11 +46,17 @@ import com.example.worldbusiness.data.model.FxBalanceRecord
 import com.example.worldbusiness.data.model.InvoiceRecord
 import com.example.worldbusiness.data.model.LiveCurrencyFeed
 import com.example.worldbusiness.data.repository.SyncOperationState
+import com.example.worldbusiness.ui.components.CrossBorderInvoiceCreateForm
 import com.example.worldbusiness.ui.components.CrossBorderInvoiceManager
 import com.example.worldbusiness.ui.components.DocumentScannerDialog
+import com.example.worldbusiness.ui.components.RechartsInvoiceAnalyticsDashboard
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.BarChart
 
 enum class CommercialSubView(val label: String) {
     LEDGER("Commercial Ledger"),
+    RECHARTS_ANALYTICS("Recharts Analytics"),
+    INVOICE_FORM("Create Invoice"),
     PDF_STUDIO("PDF Export Studio")
 }
 
@@ -123,8 +129,14 @@ fun CommercialScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
+                        val iconVector = when (subView) {
+                            CommercialSubView.LEDGER -> Icons.Default.Receipt
+                            CommercialSubView.RECHARTS_ANALYTICS -> Icons.Default.BarChart
+                            CommercialSubView.INVOICE_FORM -> Icons.Default.AddCircle
+                            CommercialSubView.PDF_STUDIO -> Icons.Default.PictureAsPdf
+                        }
                         Icon(
-                            imageVector = if (subView == CommercialSubView.LEDGER) Icons.Default.Receipt else Icons.Default.PictureAsPdf,
+                            imageVector = iconVector,
                             contentDescription = subView.label,
                             tint = if (isSelected) CyanAccent else TextMuted,
                             modifier = Modifier.size(15.dp)
@@ -142,38 +154,64 @@ fun CommercialScreen(
             }
         }
 
-        if (activeSubView == CommercialSubView.PDF_STUDIO) {
-            CrossBorderInvoicePdfScreen(
-                invoices = invoices,
-                entities = entities,
-                fxBalances = fxBalances,
-                onBack = { activeSubView = CommercialSubView.LEDGER }
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                item {
-                    CrossBorderInvoiceManager(
-                        invoices = invoices,
-                        entities = entities,
-                        fxBalances = fxBalances,
-                        onCreateInvoice = onCreateInvoice,
-                        onUpdateInvoiceStatus = onUpdateInvoiceStatus,
-                        liveCurrencyFeed = liveCurrencyFeed,
-                        onRefreshRates = onRefreshRates,
-                        onOpenScanner = { showScannerDialog = true },
-                        isOfflineMode = isOfflineMode,
-                        pendingSyncCount = pendingSyncCount,
-                        syncState = syncState,
-                        lastSyncTimestamp = lastSyncTimestamp,
-                        onToggleOfflineMode = onToggleOfflineMode,
-                        onSyncLocalInvoices = onSyncLocalInvoices
-                    )
+        when (activeSubView) {
+            CommercialSubView.RECHARTS_ANALYTICS -> {
+                RechartsInvoiceAnalyticsDashboard(
+                    invoices = invoices,
+                    entities = entities,
+                    liveCurrencyFeed = liveCurrencyFeed,
+                    onNavigateBack = { activeSubView = CommercialSubView.LEDGER },
+                    onOpenCreateInvoice = { activeSubView = CommercialSubView.INVOICE_FORM }
+                )
+            }
+            CommercialSubView.INVOICE_FORM -> {
+                CrossBorderInvoiceCreateForm(
+                    entities = entities,
+                    liveCurrencyFeed = liveCurrencyFeed,
+                    isOfflineMode = isOfflineMode,
+                    onSaveInvoice = { issuing, client, country, amount, curr, tax, desc, due ->
+                        onCreateInvoice(issuing, client, country, amount, curr, tax, desc, due)
+                        activeSubView = CommercialSubView.LEDGER
+                    },
+                    onCancel = { activeSubView = CommercialSubView.LEDGER }
+                )
+            }
+            CommercialSubView.PDF_STUDIO -> {
+                CrossBorderInvoicePdfScreen(
+                    invoices = invoices,
+                    entities = entities,
+                    fxBalances = fxBalances,
+                    onBack = { activeSubView = CommercialSubView.LEDGER }
+                )
+            }
+            CommercialSubView.LEDGER -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    item {
+                        CrossBorderInvoiceManager(
+                            invoices = invoices,
+                            entities = entities,
+                            fxBalances = fxBalances,
+                            onCreateInvoice = onCreateInvoice,
+                            onUpdateInvoiceStatus = onUpdateInvoiceStatus,
+                            liveCurrencyFeed = liveCurrencyFeed,
+                            onRefreshRates = onRefreshRates,
+                            onOpenScanner = { showScannerDialog = true },
+                            onOpenCreateForm = { activeSubView = CommercialSubView.INVOICE_FORM },
+                            onOpenAnalytics = { activeSubView = CommercialSubView.RECHARTS_ANALYTICS },
+                            isOfflineMode = isOfflineMode,
+                            pendingSyncCount = pendingSyncCount,
+                            syncState = syncState,
+                            lastSyncTimestamp = lastSyncTimestamp,
+                            onToggleOfflineMode = onToggleOfflineMode,
+                            onSyncLocalInvoices = onSyncLocalInvoices
+                        )
+                    }
                 }
             }
         }

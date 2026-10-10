@@ -24,7 +24,7 @@ import com.example.worldbusiness.data.model.TreasuryTransactionRecord
         AuditLogRecord::class,
         GlobalSupplierRecord::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class WorldBusinessDatabase : RoomDatabase() {

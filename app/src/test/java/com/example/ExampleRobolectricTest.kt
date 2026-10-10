@@ -2401,4 +2401,233 @@ class ExampleRobolectricTest {
     val statusAudit = auditLogs.find { it.module == com.example.worldbusiness.data.model.AuditLogModule.LOGISTICS.name }
     assertNotNull("Logistics audit log must be recorded", statusAudit)
   }
+
+  @Test
+  fun `test enterprise ledger compliance snapshot export and zero-trust integrity verification`() = runBlocking {
+    repository.seedInitialDataIfNeeded()
+    val entities = repository.allEntities.first()
+    val invoices = repository.allInvoices.first()
+    val balances = repository.allBalances.first()
+    val shipments = repository.allShipments.first()
+    val auditLogs = repository.allAuditLogs.first()
+
+    val snapshot = com.example.worldbusiness.data.repository.DatabaseComplianceExportEngine.generateSnapshot(
+      entities = entities,
+      invoices = invoices,
+      balances = balances,
+      shipments = shipments,
+      auditLogs = auditLogs
+    )
+
+    assertNotNull("Snapshot must not be null", snapshot)
+    assertTrue("Total records in snapshot must be positive", snapshot.totalRecordsCount > 0)
+    assertTrue("Manifest checksum must be 64-char SHA-256", snapshot.sha256ManifestChecksum.length == 64)
+    assertTrue("Raw JSON must contain system metrics", snapshot.rawJsonPayload.contains("systemMetrics"))
+    assertTrue("Raw JSON must contain entities", snapshot.rawJsonPayload.contains("entities"))
+    assertTrue("Raw JSON must contain vaults", snapshot.rawJsonPayload.contains("vaults"))
+    assertTrue("Chain integrity must be verified as valid", snapshot.chainIntegrityValid)
+    assertNotNull("Root hash must not be null", snapshot.rootHash)
+    assertNotNull("Head hash must not be null", snapshot.latestHash)
+  }
+
+  @Test
+  fun `test executive logistics corridor stream and ETA recalibration engine`() = runBlocking {
+    repository.seedInitialDataIfNeeded()
+
+    // 1. Validate Geodesic & Modal Calculation for Prime Trade Corridor
+    val shanghaiHub = com.example.worldbusiness.data.repository.LogisticsDeliveryCalculatorEngine.findHubByKeyword("Shanghai")
+    val rotterdamHub = com.example.worldbusiness.data.repository.LogisticsDeliveryCalculatorEngine.findHubByKeyword("Rotterdam")
+
+    val oceanEstimate = com.example.worldbusiness.data.repository.LogisticsDeliveryCalculatorEngine.calculateDeliveryEstimate(
+      originHub = shanghaiHub,
+      destinationHub = rotterdamHub,
+      freightMode = com.example.worldbusiness.data.model.LogisticsFreightMode.OCEAN_CONTAINER
+    )
+
+    assertTrue("Great circle distance must be positive", oceanEstimate.geodesicDistanceKm > 8000.0)
+    assertTrue("Total transit days for ocean must be realistic", oceanEstimate.totalTransitDays >= 15)
+    assertTrue("Delivery confidence must be high", oceanEstimate.deliveryConfidencePercent >= 85)
+    assertNotNull("Calculated ETA must be generated", oceanEstimate.calculatedEstimatedDeliveryDate)
+
+    // 2. Validate Air Cargo Mode Speed Profile
+    val airEstimate = com.example.worldbusiness.data.repository.LogisticsDeliveryCalculatorEngine.calculateDeliveryEstimate(
+      originHub = shanghaiHub,
+      destinationHub = rotterdamHub,
+      freightMode = com.example.worldbusiness.data.model.LogisticsFreightMode.AIR_CARGO
+    )
+    assertTrue("Air transit days must be faster than ocean", airEstimate.totalTransitDays < oceanEstimate.totalTransitDays)
+
+    // 3. Test Room Database Real-Time Recalibration
+    val shipments = repository.allShipments.first()
+    assertTrue("Seed shipments must exist in Room", shipments.isNotEmpty())
+    val targetShipment = shipments.first()
+
+    val revisedEta = com.example.worldbusiness.data.repository.LogisticsDeliveryCalculatorEngine.recalibrateShipmentEta(
+      currentRecord = targetShipment,
+      newStatus = "PORT_INSPECTION"
+    )
+    assertNotNull("Revised ETA must not be null", revisedEta)
+
+    repository.updateShipmentStatus(targetShipment.id, "PORT_INSPECTION", revisedEta)
+    val updatedShipments = repository.allShipments.first()
+    val updated = updatedShipments.find { it.id == targetShipment.id }
+
+    assertNotNull("Updated shipment must be found in Room", updated)
+    assertEquals("PORT_INSPECTION", updated!!.customsStatus)
+    assertEquals(revisedEta, updated.estimatedArrival)
+  }
+
+  @Test
+  fun `test UI navigation tab routing and state flow transitions`() = runBlocking {
+    repository.seedInitialDataIfNeeded()
+    val viewModel = com.example.worldbusiness.ui.WorldBusinessViewModel(repository)
+
+    // Verify initial tab is COCKPIT
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.COCKPIT, viewModel.currentTab.value)
+
+    // Test transition to ENTITIES tab
+    viewModel.selectTab(com.example.worldbusiness.ui.OSNavigationTab.ENTITIES)
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.ENTITIES, viewModel.currentTab.value)
+
+    // Test transition to TREASURY tab
+    viewModel.selectTab(com.example.worldbusiness.ui.OSNavigationTab.TREASURY)
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.TREASURY, viewModel.currentTab.value)
+
+    // Test transition to COMMERCIAL tab
+    viewModel.selectTab(com.example.worldbusiness.ui.OSNavigationTab.COMMERCIAL)
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.COMMERCIAL, viewModel.currentTab.value)
+
+    // Test transition to WORKFORCE tab
+    viewModel.selectTab(com.example.worldbusiness.ui.OSNavigationTab.WORKFORCE)
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.WORKFORCE, viewModel.currentTab.value)
+
+    // Test transition to LOGISTICS tab
+    viewModel.selectTab(com.example.worldbusiness.ui.OSNavigationTab.LOGISTICS)
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.LOGISTICS, viewModel.currentTab.value)
+
+    // Test transition to AUDIT tab
+    viewModel.selectTab(com.example.worldbusiness.ui.OSNavigationTab.AUDIT)
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.AUDIT, viewModel.currentTab.value)
+
+    // Test return to COCKPIT
+    viewModel.selectTab(com.example.worldbusiness.ui.OSNavigationTab.COCKPIT)
+    assertEquals(com.example.worldbusiness.ui.OSNavigationTab.COCKPIT, viewModel.currentTab.value)
+
+    // Test Currency Calculator Modal open/close state
+    assertEquals(false, viewModel.calculatorModalVisible.value)
+    viewModel.openConversionCalculator()
+    assertEquals(true, viewModel.calculatorModalVisible.value)
+    viewModel.closeConversionCalculator()
+    assertEquals(false, viewModel.calculatorModalVisible.value)
+  }
+
+  @Test
+  fun `test cross border invoice PDF document generation and download export`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    
+    val exporter = com.example.worldbusiness.data.model.CorporateExporterProfile(
+        entityName = "Helvetia Global Asset Management AG",
+        jurisdiction = "Zurich, Switzerland",
+        physicalAddress = "Bahnhofstrasse 45, 8001 Zurich, Switzerland",
+        countryCode = "CH",
+        vatTaxId = "CHE-102.345.678 MWST",
+        eoriCustomsNumber = "EORI-CH-91823",
+        registrationNumber = "REG-101",
+        legalRepresentative = "Dr. Beatrix von Haller",
+        bankInstitution = "UBS Switzerland AG",
+        swiftBic = "UBSWCHZH80A",
+        ibanOrAccount = "CH93 0024 0240 1234 5678 9",
+        primaryClearingRail = "SIC RTGS Rail"
+    )
+
+    val client = com.example.worldbusiness.data.model.CrossBorderClientProfile(
+        clientName = "Siemens Energy AG",
+        destinationCountry = "Germany",
+        destinationCountryCode = "DE",
+        billingAddress = "Otto-Hahn-Ring 6, 81739 Munich, Germany",
+        shippingAddress = "Otto-Hahn-Ring 6, 81739 Munich, Germany",
+        clientVatGstId = "DE 302 918 201",
+        contactEmail = "invoicing@siemens-energy.com",
+        contactPhone = "+49 89 636 00"
+    )
+
+    val items = listOf(
+        com.example.worldbusiness.data.model.CrossBorderInvoiceItem(
+            description = "Enterprise Cloud Architecture License",
+            quantity = 1.0,
+            unitPrice = 50000.0,
+            hsnSacCode = "998313",
+            taxRatePercent = 0.0
+        )
+    )
+
+    val invoiceDoc = com.example.worldbusiness.data.model.CrossBorderInvoiceDocument(
+        invoiceNumber = "INV-2026-TEST-9999",
+        issueDate = "2026-10-10",
+        dueDate = "2026-11-10",
+        paymentTerms = "Net 30 Days",
+        status = com.example.worldbusiness.data.model.CrossBorderInvoiceStatus.ISSUED,
+        incoterm = com.example.worldbusiness.data.model.CrossBorderIncoterm.DAP,
+        exporter = exporter,
+        client = client,
+        currency = "EUR",
+        currencySymbol = "€",
+        exchangeRateToUsd = 1.08,
+        lineItems = items,
+        subtotal = 50000.0,
+        taxName = "0% Reverse Charge VAT",
+        taxRatePercent = 0.0,
+        taxAmount = 0.0,
+        isReverseCharge = true,
+        grossTotal = 50000.0,
+        netReceivable = 50000.0,
+        equivalentUsdAmount = 54000.0,
+        statutoryComplianceNote = "Art. 196 EU VAT Directive"
+    )
+
+    // 1. Generate & Save PDF
+    val pdfResult = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine
+        .generateAndSaveInvoicePdf(context, invoiceDoc)
+
+    assertNotNull(pdfResult)
+    assertTrue(pdfResult.file.exists())
+    assertTrue(pdfResult.file.length() > 0)
+    assertEquals("INV-2026-TEST-9999", pdfResult.invoiceNumber)
+    assertTrue(pdfResult.sha256Checksum.isNotBlank())
+
+    // 2. Test Download Export to public downloads directory
+    val downloadedCopy = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine
+        .exportToDownloadsFolder(context, pdfResult.file)
+    assertNotNull(downloadedCopy)
+    assertTrue(downloadedCopy!!.exists())
+    assertTrue(downloadedCopy.length() > 0)
+
+    // 3. Test Intent creation for Viewing and Sharing PDF
+    val viewIntent = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine
+        .createViewPdfIntent(context, pdfResult.file)
+    assertEquals(android.content.Intent.ACTION_VIEW, viewIntent.action)
+    assertEquals("application/pdf", viewIntent.type)
+
+    val shareIntent = com.example.worldbusiness.data.repository.CrossBorderInvoicePdfEngine
+        .createSharePdfIntent(context, pdfResult.file)
+    assertEquals(android.content.Intent.ACTION_SEND, shareIntent.action)
+    assertEquals("application/pdf", shareIntent.type)
+  }
+
+  @Test
+  fun `test Recharts invoice currency amounts aggregation over 30 days`() = runBlocking {
+    repository.seedInitialDataIfNeeded()
+    val invoices = repository.getAllInvoices().first()
+    assertTrue(invoices.isNotEmpty())
+
+    // Group invoices by currency
+    val grouped = invoices.groupBy { it.currency }
+    assertTrue(grouped.containsKey("USD"))
+    assertTrue(grouped.containsKey("EUR"))
+
+    val usdTotal = grouped["USD"]?.sumOf { it.amount } ?: 0.0
+    val eurTotal = grouped["EUR"]?.sumOf { it.amount } ?: 0.0
+    assertTrue(usdTotal > 0.0)
+    assertTrue(eurTotal > 0.0)
+  }
 }

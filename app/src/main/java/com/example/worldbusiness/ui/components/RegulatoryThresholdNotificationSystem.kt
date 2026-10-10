@@ -97,7 +97,7 @@ fun RegulatoryThresholdAlertBanner(
     val transferCount = activeAlerts.count { it.category == ThresholdCategory.CROSS_BORDER_TRANSFER }
 
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         color = bannerColor.copy(alpha = 0.12f),
         border = CardDefaults.outlinedCardBorder().copy(
             brush = Brush.horizontalGradient(listOf(bannerColor.copy(alpha = 0.7f), BorderSubtle))
@@ -111,7 +111,7 @@ fun RegulatoryThresholdAlertBanner(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 9.dp),
+                .padding(horizontal = 12.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -122,7 +122,7 @@ fun RegulatoryThresholdAlertBanner(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(22.dp)
                         .background(bannerColor.copy(alpha = 0.2f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -130,7 +130,7 @@ fun RegulatoryThresholdAlertBanner(
                         imageVector = if (hasExceeded) Icons.Default.Error else Icons.Default.Warning,
                         contentDescription = "Threshold Warning",
                         tint = bannerColor,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(13.dp)
                     )
                 }
 

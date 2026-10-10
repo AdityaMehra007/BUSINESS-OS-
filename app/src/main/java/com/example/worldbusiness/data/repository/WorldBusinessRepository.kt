@@ -833,7 +833,7 @@ class WorldBusinessRepository(private val database: WorldBusinessDatabase) {
                     amount = 285000.0,
                     currency = "USD",
                     taxRatePercent = 0.0,
-                    status = "PENDING",
+                    status = "SENT",
                     serviceDescription = "Cross-border Enterprise Cloud Architecture License & SLA"
                 ),
                 InvoiceRecord(
@@ -885,8 +885,34 @@ class WorldBusinessRepository(private val database: WorldBusinessDatabase) {
                     amount = 195000.0,
                     currency = "EUR",
                     taxRatePercent = 19.0,
-                    status = "PENDING",
+                    status = "SENT",
                     serviceDescription = "Embedded Autonomous Safety Verification Suite"
+                ),
+                InvoiceRecord(
+                    invoiceNumber = "INV-2026-0892",
+                    issuingEntityName = "OmniGlobal Holdings Inc.",
+                    clientName = "Horizon Logistics Systems BV",
+                    clientCountry = "Netherlands",
+                    issueDate = "Oct 02, 2026",
+                    dueDate = "Nov 02, 2026",
+                    amount = 74500.0,
+                    currency = "EUR",
+                    taxRatePercent = 21.0,
+                    status = "DRAFT",
+                    serviceDescription = "Maritime Autonomous Router & Customs Telemetry (Draft Scope)"
+                ),
+                InvoiceRecord(
+                    invoiceNumber = "INV-2026-0893",
+                    issuingEntityName = "OmniGlobal UK & EMEA Ltd.",
+                    clientName = "Valence Battery Dynamics Ltd",
+                    clientCountry = "United Kingdom",
+                    issueDate = "Sep 28, 2026",
+                    dueDate = "Oct 28, 2026",
+                    amount = 188000.0,
+                    currency = "GBP",
+                    taxRatePercent = 20.0,
+                    status = "SENT",
+                    serviceDescription = "Cross-border Battery Energy Storage Analytics SaaS SLA"
                 )
             )
             invoiceDao.insertAll(invoices)

@@ -23,15 +23,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Drafts
+import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Receipt
@@ -39,6 +45,7 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -129,6 +136,8 @@ fun CrossBorderInvoiceManager(
     liveCurrencyFeed: LiveCurrencyFeed = LiveCurrencyFeed(),
     onRefreshRates: (() -> Unit)? = null,
     onOpenScanner: (() -> Unit)? = null,
+    onOpenCreateForm: (() -> Unit)? = null,
+    onOpenAnalytics: (() -> Unit)? = null,
     isOfflineMode: Boolean = false,
     pendingSyncCount: Int = 0,
     syncState: SyncOperationState = SyncOperationState.IDLE,
@@ -158,10 +167,12 @@ fun CrossBorderInvoiceManager(
 
             val matchesStatus = when (selectedStatusFilter) {
                 "ALL" -> true
-                "SETTLED", "PAID" -> invoice.status == "PAID" || invoice.status == "SETTLED"
-                "IN_CLEARING" -> invoice.status == "IN_CLEARING"
-                "PENDING" -> invoice.status == "PENDING"
-                "OVERDUE" -> invoice.status == "OVERDUE"
+                "DRAFT" -> invoice.status.equals("DRAFT", ignoreCase = true)
+                "SENT" -> invoice.status.equals("SENT", ignoreCase = true)
+                "SETTLED", "PAID" -> invoice.status.equals("PAID", ignoreCase = true) || invoice.status.equals("SETTLED", ignoreCase = true)
+                "IN_CLEARING" -> invoice.status.equals("IN_CLEARING", ignoreCase = true)
+                "PENDING" -> invoice.status.equals("PENDING", ignoreCase = true)
+                "OVERDUE" -> invoice.status.equals("OVERDUE", ignoreCase = true)
                 else -> invoice.status.equals(selectedStatusFilter, ignoreCase = true)
             }
 
@@ -203,6 +214,8 @@ fun CrossBorderInvoiceManager(
         // Management Hub Header & Actions
         CrossBorderManagerHeader(
             onOpenCreateModal = { showCreateModal = true },
+            onOpenCreateForm = onOpenCreateForm,
+            onOpenAnalytics = onOpenAnalytics,
             onOpenScanner = onOpenScanner,
             onOpenGeneratorModal = { showInvoiceGeneratorModal = true }
         )
@@ -633,6 +646,8 @@ fun RealTimeCurrencyTickerBanner(
 @Composable
 private fun CrossBorderManagerHeader(
     onOpenCreateModal: () -> Unit,
+    onOpenCreateForm: (() -> Unit)? = null,
+    onOpenAnalytics: (() -> Unit)? = null,
     onOpenScanner: (() -> Unit)? = null,
     onOpenGeneratorModal: (() -> Unit)? = null
 ) {
@@ -681,6 +696,21 @@ private fun CrossBorderManagerHeader(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (onOpenAnalytics != null) {
+                Button(
+                    onClick = onOpenAnalytics,
+                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated, contentColor = CyanAccent),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp),
+                    modifier = Modifier.testTag("btn_manager_analytics")
+                ) {
+                    Icon(imageVector = Icons.Default.BarChart, contentDescription = "Analytics", modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("RECHARTS", fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+            }
+
             if (onOpenGeneratorModal != null) {
                 Button(
                     onClick = onOpenGeneratorModal,
@@ -710,7 +740,7 @@ private fun CrossBorderManagerHeader(
             }
 
             Button(
-                onClick = onOpenCreateModal,
+                onClick = onOpenCreateForm ?: onOpenCreateModal,
                 colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = SurfaceDark),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp),
@@ -846,7 +876,7 @@ private fun CrossBorderFilterToolbar(
         ) {
             Text(text = "STATUS:", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = TextMuted, fontFamily = FontFamily.Monospace)
 
-            listOf("ALL", "PENDING", "IN_CLEARING", "PAID", "OVERDUE").forEach { status ->
+            listOf("ALL", "DRAFT", "SENT", "PAID", "OVERDUE", "PENDING").forEach { status ->
                 val isSelected = selectedStatus == status
                 Box(
                     modifier = Modifier
@@ -854,10 +884,17 @@ private fun CrossBorderFilterToolbar(
                         .border(0.5.dp, if (isSelected) CyanAccent else BorderSubtle, RoundedCornerShape(6.dp))
                         .clickable { onSelectStatus(status) }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
-                        .testTag("status_filter_$status")
+                        .testTag("status_filter_${status.lowercase(Locale.US)}")
                 ) {
                     Text(
-                        text = if (status == "PAID") "SETTLED" else status.replace("_", " "),
+                        text = when (status) {
+                            "DRAFT" -> "DRAFT"
+                            "SENT" -> "SENT"
+                            "PAID" -> "PAID"
+                            "OVERDUE" -> "OVERDUE"
+                            "PENDING" -> "PENDING"
+                            else -> status.replace("_", " ")
+                        },
                         fontSize = 9.sp,
                         fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                         color = if (isSelected) SurfaceDark else TextSecondary,
@@ -885,6 +922,117 @@ private fun CrossBorderFilterToolbar(
                         fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                         color = if (isSelected) SurfaceDark else TextSecondary,
                         fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Visual Status Indicator for Invoices in the Database & List View.
+ * Displays distinctive iconography, color-coded badges, and optional quick-action transitions
+ * for 'Draft', 'Sent', 'Paid', 'Overdue' (and intermediate banking states).
+ */
+@Composable
+fun InvoiceStatusIndicator(
+    status: String,
+    modifier: Modifier = Modifier,
+    invoiceId: Long? = null,
+    onStatusChange: ((String) -> Unit)? = null
+) {
+    val stage = InvoiceStatusStage.fromString(status)
+    var showMenu by remember { mutableStateOf(false) }
+
+    val iconVector = when (stage) {
+        InvoiceStatusStage.DRAFT -> Icons.Default.Drafts
+        InvoiceStatusStage.SENT -> Icons.AutoMirrored.Filled.Send
+        InvoiceStatusStage.PAID, InvoiceStatusStage.SETTLED -> Icons.Default.CheckCircle
+        InvoiceStatusStage.OVERDUE, InvoiceStatusStage.DISPUTED -> Icons.Default.Warning
+        InvoiceStatusStage.IN_CLEARING -> Icons.Default.Sync
+        InvoiceStatusStage.PENDING -> Icons.Default.HourglassTop
+    }
+
+    Box(modifier = modifier) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = stage.color.copy(alpha = 0.16f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, stage.color.copy(alpha = 0.7f)),
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(enabled = onStatusChange != null) { showMenu = true }
+                .testTag(if (invoiceId != null) "invoice_status_indicator_$invoiceId" else "invoice_status_indicator_${stage.key.lowercase(Locale.US)}")
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = iconVector,
+                    contentDescription = stage.label,
+                    tint = stage.color,
+                    modifier = Modifier.size(11.dp)
+                )
+                Text(
+                    text = stage.label.uppercase(Locale.US),
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = stage.color,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 0.5.sp
+                )
+                if (onStatusChange != null) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Change Status",
+                        tint = stage.color,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+        }
+
+        if (onStatusChange != null && showMenu) {
+            androidx.compose.material3.DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.background(SurfaceDark)
+            ) {
+                listOf(
+                    Triple("DRAFT", "Draft", Icons.Default.Drafts),
+                    Triple("SENT", "Sent", Icons.AutoMirrored.Filled.Send),
+                    Triple("PAID", "Paid", Icons.Default.CheckCircle),
+                    Triple("OVERDUE", "Overdue", Icons.Default.Warning)
+                ).forEach { (statusCode, statusLabel, icon) ->
+                    val isCurrent = stage.key.equals(statusCode, ignoreCase = true)
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val itemStage = InvoiceStatusStage.fromString(statusCode)
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = statusLabel,
+                                    tint = itemStage.color,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = statusLabel,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isCurrent) itemStage.color else TextPrimary,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        },
+                        onClick = {
+                            onStatusChange(statusCode)
+                            showMenu = false
+                        },
+                        modifier = Modifier.testTag("status_option_${statusCode.lowercase(Locale.US)}")
                     )
                 }
             }
@@ -981,29 +1129,12 @@ private fun CrossBorderInvoiceItemCard(
                         }
                     }
 
-                    // Status Badge
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = stage.color.copy(alpha = 0.15f),
-                        border = CardDefaults.outlinedCardBorder().copy(
-                            brush = Brush.horizontalGradient(listOf(stage.color, stage.color.copy(alpha = 0.5f)))
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(modifier = Modifier.size(5.dp).background(stage.color, CircleShape))
-                            Text(
-                                text = stage.label,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = stage.color,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
+                    // Status Indicator
+                    InvoiceStatusIndicator(
+                        status = invoice.status,
+                        invoiceId = invoice.id,
+                        onStatusChange = onUpdateStatus
+                    )
                 }
             }
 
@@ -1122,18 +1253,31 @@ private fun CrossBorderInvoiceItemCard(
                         }
                     }
 
-                    when (invoice.status) {
-                        "PENDING" -> {
+                    when (invoice.status.uppercase(Locale.US)) {
+                        "DRAFT" -> {
                             Button(
-                                onClick = { onUpdateStatus("IN_CLEARING") },
-                                colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = SurfaceDark),
+                                onClick = { onUpdateStatus("SENT") },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8), contentColor = SurfaceDark),
                                 shape = RoundedCornerShape(6.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                modifier = Modifier.testTag("btn_clearing_${invoice.id}")
+                                modifier = Modifier.testTag("btn_send_${invoice.id}")
                             ) {
-                                Icon(imageVector = Icons.Default.Sync, contentDescription = "Clear", modifier = Modifier.size(11.dp))
+                                Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send", modifier = Modifier.size(11.dp))
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Text("START CLEARING", fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                Text("SEND INVOICE", fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                        "SENT", "PENDING" -> {
+                            Button(
+                                onClick = { onUpdateStatus("PAID") },
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPositive, contentColor = SurfaceDark),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.testTag("btn_mark_paid_${invoice.id}")
+                            ) {
+                                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "Pay", modifier = Modifier.size(11.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("MARK PAID", fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                             }
                         }
                         "IN_CLEARING" -> {
@@ -1151,13 +1295,15 @@ private fun CrossBorderInvoiceItemCard(
                         }
                         "OVERDUE" -> {
                             Button(
-                                onClick = { onUpdateStatus("IN_CLEARING") },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = SurfaceDark),
+                                onClick = { onUpdateStatus("PAID") },
+                                colors = ButtonDefaults.buttonColors(containerColor = RoseNegative, contentColor = Color.White),
                                 shape = RoundedCornerShape(6.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                modifier = Modifier.testTag("btn_retry_wire_${invoice.id}")
+                                modifier = Modifier.testTag("btn_settle_overdue_${invoice.id}")
                             ) {
-                                Text("RETRY WIRE", fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "Settle", modifier = Modifier.size(11.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("SETTLE NOW", fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                             }
                         }
                         else -> {
@@ -1171,7 +1317,7 @@ private fun CrossBorderInvoiceItemCard(
                                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Icon(imageVector = Icons.Default.Check, contentDescription = "Cleared", tint = EmeraldPositive, modifier = Modifier.size(10.dp))
-                                    Text("FUNDS CLEARED", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = EmeraldPositive, fontFamily = FontFamily.Monospace)
+                                    Text("PAID & CLEARED", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = EmeraldPositive, fontFamily = FontFamily.Monospace)
                                 }
                             }
                         }
@@ -1187,16 +1333,16 @@ private fun CrossBorderInvoiceItemCard(
  */
 @Composable
 private fun CrossBorderStatusProgressStepper(currentStatus: String) {
-    val currentStep = when (currentStatus) {
+    val currentStep = when (currentStatus.uppercase(Locale.US)) {
         "DRAFT" -> 0
-        "PENDING" -> 1
+        "SENT", "PENDING" -> 1
         "IN_CLEARING" -> 2
         "PAID", "SETTLED" -> 3
         "OVERDUE", "DISPUTED" -> 1
         else -> 1
     }
 
-    val steps = listOf("1. Tax Cleared", "2. Issued", "3. In-Clearing", "4. Settled")
+    val steps = listOf("1. Draft", "2. Sent", "3. In-Clearing", "4. Paid")
 
     Row(
         modifier = Modifier
@@ -1278,6 +1424,8 @@ private fun CrossBorderInvoiceFormModal(
     ) -> Unit
 ) {
     var issuingEntity by remember { mutableStateOf(entities.firstOrNull()?.name ?: "OmniGlobal Holdings Inc.") }
+    val activeEntity = entities.find { it.name == issuingEntity } ?: entities.firstOrNull()
+    var vendorTaxId by remember(issuingEntity) { mutableStateOf(activeEntity?.taxId ?: "CHE-102.345.678 MWST") }
     var clientName by remember { mutableStateOf("") }
     var clientCountry by remember { mutableStateOf("United Kingdom") }
     var amountStr by remember { mutableStateOf("85000") }
@@ -1324,6 +1472,8 @@ private fun CrossBorderInvoiceFormModal(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(480.dp)
+                    .verticalScroll(rememberScrollState())
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -1354,8 +1504,8 @@ private fun CrossBorderInvoiceFormModal(
                     }
                 }
 
-                // Issuing Entity Dropdown
-                Text(text = "1. ISSUING SOVEREIGN ENTITY", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CyanAccent, fontFamily = FontFamily.Monospace)
+                // Vendor Details & Issuing Entity Dropdown
+                Text(text = "1. VENDOR / ISSUING ENTITY DETAILS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CyanAccent, fontFamily = FontFamily.Monospace)
                 ExposedDropdownMenuBox(
                     expanded = entityDropdownExpanded,
                     onExpandedChange = { entityDropdownExpanded = !entityDropdownExpanded }
@@ -1389,12 +1539,30 @@ private fun CrossBorderInvoiceFormModal(
                                 text = { Text("${entity.name} (${entity.jurisdiction})", fontSize = 11.sp) },
                                 onClick = {
                                     issuingEntity = entity.name
+                                    vendorTaxId = entity.taxId
                                     entityDropdownExpanded = false
                                 }
                             )
                         }
                     }
                 }
+
+                OutlinedTextField(
+                    value = vendorTaxId,
+                    onValueChange = { vendorTaxId = it },
+                    label = { Text("Vendor VAT / Tax ID", fontSize = 10.sp) },
+                    modifier = Modifier.fillMaxWidth().testTag("input_modal_vendor_tax_id"),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = SurfaceDark,
+                        unfocusedContainerColor = SurfaceDark,
+                        focusedBorderColor = CyanAccent,
+                        unfocusedBorderColor = BorderSubtle,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    ),
+                    singleLine = true
+                )
 
                 // Client Name & Country
                 Text(text = "2. CLIENT & BILLING JURISDICTION", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CyanAccent, fontFamily = FontFamily.Monospace)
@@ -1782,23 +1950,25 @@ private fun CrossBorderInvoiceDossierModal(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf("PENDING", "IN_CLEARING", "PAID", "OVERDUE").forEach { statusOption ->
+                    listOf("DRAFT", "SENT", "PAID", "OVERDUE").forEach { statusOption ->
                         val isCurrent = invoice.status.equals(statusOption, ignoreCase = true)
+                        val optStage = InvoiceStatusStage.fromString(statusOption)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isCurrent) CyanAccent else SurfaceElevated)
+                                .background(if (isCurrent) optStage.color.copy(alpha = 0.25f) else SurfaceElevated)
+                                .border(1.dp, if (isCurrent) optStage.color else BorderSubtle, RoundedCornerShape(6.dp))
                                 .clickable { onUpdateStatus(statusOption) }
                                 .padding(vertical = 7.dp)
                                 .testTag("modal_transition_${statusOption.lowercase(Locale.US)}"),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (statusOption == "PAID") "SETTLED" else statusOption.replace("_", " "),
+                                text = optStage.label.uppercase(Locale.US),
                                 fontSize = 8.sp,
                                 fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Bold,
-                                color = if (isCurrent) SurfaceDark else TextSecondary,
+                                color = if (isCurrent) optStage.color else TextSecondary,
                                 fontFamily = FontFamily.Monospace
                             )
                         }

@@ -46,16 +46,29 @@ enum class InvoiceStatusStage(
     val description: String,
     val stepIndex: Int
 ) {
-    DRAFT("DRAFT", "Draft & Tax Review", TextMuted, "Commercial terms and VAT rules being configured", 0),
-    PENDING("PENDING", "Awaiting Remittance", GoldAccent, "Statutory invoice issued to client, awaiting cross-border payment", 1),
-    IN_CLEARING("IN_CLEARING", "In Banking Clearing", CyanAccent, "Payment initiated, clearing through international SWIFT/SEPA rails", 2),
-    PAID("PAID", "Settled & Cleared", EmeraldPositive, "Funds settled into sovereign multi-currency vault", 3),
-    OVERDUE("OVERDUE", "Payment Overdue", RoseNegative, "Exceeded statutory grace period, automated dunning active", 1),
-    DISPUTED("DISPUTED", "Audit Disputed", RoseNegative, "Invoice placed on hold pending contractual or tax reconciliation", 1);
+    DRAFT("DRAFT", "Draft", Color(0xFF94A3B8), "Commercial terms and VAT rules being configured as local draft", 0),
+    SENT("SENT", "Sent", Color(0xFF38BDF8), "Statutory invoice sent to client, awaiting cross-border remittance", 1),
+    PENDING("PENDING", "Pending", GoldAccent, "Statutory invoice issued to client, awaiting cross-border payment", 1),
+    IN_CLEARING("IN_CLEARING", "In-Clearing", CyanAccent, "Payment initiated, clearing through international SWIFT/SEPA rails", 2),
+    PAID("PAID", "Paid", EmeraldPositive, "Funds settled into sovereign multi-currency treasury vault", 3),
+    SETTLED("SETTLED", "Paid", EmeraldPositive, "Funds settled into sovereign multi-currency treasury vault", 3),
+    OVERDUE("OVERDUE", "Overdue", RoseNegative, "Exceeded statutory grace period, automated dunning active", 1),
+    DISPUTED("DISPUTED", "Disputed", RoseNegative, "Invoice placed on hold pending contractual or tax reconciliation", 1);
 
     companion object {
-        fun fromString(status: String): InvoiceStatusStage {
-            return values().find { it.key.equals(status, ignoreCase = true) } ?: PENDING
+        fun fromString(status: String?): InvoiceStatusStage {
+            if (status.isNullOrBlank()) return PENDING
+            val normalized = status.trim().uppercase()
+            return when (normalized) {
+                "DRAFT" -> DRAFT
+                "SENT" -> SENT
+                "PENDING" -> PENDING
+                "IN_CLEARING", "CLEARING", "INCLEARING" -> IN_CLEARING
+                "PAID", "SETTLED" -> PAID
+                "OVERDUE" -> OVERDUE
+                "DISPUTED" -> DISPUTED
+                else -> values().find { it.key.equals(normalized, ignoreCase = true) } ?: PENDING
+            }
         }
     }
 }
