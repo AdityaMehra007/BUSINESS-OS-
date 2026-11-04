@@ -9,6 +9,8 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0+-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4.svg?logo=android&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Firebase-Integrated-FFCA28.svg?logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![Portfolio](https://img.shields.io/badge/Portfolio-adityamehra007.github.io-7928CA?logo=githubpages&logoColor=white)](https://adityamehra007.github.io)
+[![Flagship Hub](https://img.shields.io/badge/Flagship-anti-0070F3.svg?logo=github)](https://github.com/AdityaMehra007/anti)
 
 ---
 
